@@ -1,0 +1,78 @@
+/* 
+
+Style Hints: 
+
+Body Font Size = 14px
+	 Font Family = "Times New Roman", serif
+	 Font Color = black
+	 Background: #F3EBE9
+
+H1 Font Size = 50px
+   Font Family = Arial, Helvetica, sans-serif
+   Text-transform: uppercase;
+   color: #FFFFFF;	(White)
+
+H2: Font Size = 18px
+	Text-Transform: uppercase;
+	Font-Family: cursive, Helvetica, sans-serif;
+
+*/
+body{
+	background-image:  url("../images/pattern1.png");
+	font-size: 14px;
+	font-family: "Times New Roman";
+	font-color: black;
+
+
+
+}
+
+
+h1{
+   font-size: 50px;
+   font-family: = Arial, Helvetica, sans-serif;
+   text-transform: uppercase;
+   color: #ffffff;
+
+}
+
+
+h2{
+	font-size:18px;
+	text-transform: uppercase;
+	font-family: cursive, Helvetica, sans-serif;
+
+
+}
+.container{
+	width: 980px;
+	margin: 0 auto 0 auto;
+
+}
+.header {
+	background-color: #EE7871;
+	padding: 25px 25px 25px 25px;
+	
+}
+
+
+.imageorchids{
+
+}
+
+
+.white{
+
+background-color: white;
+padding: 25px 25px 25px 25px;
+
+}
+.footer{
+	color: white;
+	padding:10px 10px 10px 10px;
+	text-align: right;
+	height: 40px;
+	background-color:#EE7871;
+
+}
+
