@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>MAPS Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="status" id="status"></div>
+    <div class="brand">
+      <h1>
+        <svg class="hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="none" stroke="#ff7a1a" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="#ff7a1a"/></svg>
+        <span id="title">MAPS</span> <span class="sub" id="subtitle">Agentic OS</span>
+      </h1>
+      <small>Memory · Agent · Pools · Screen</small>
+    </div>
+    <div class="top-right">
+      <span id="sampleBadge" class="badge" hidden>SAMPLE DATA</span>
+      <input class="search" id="search" placeholder="Search anything…" autocomplete="off">
+      <span id="date"></span>
+      <span class="clock" id="clock"></span>
+    </div>
+  </header>
+
+  <main class="main">
+    <aside class="col">
+      <section class="panel">
+        <h3><span class="ico">▣</span> Today <span class="right" id="todayDate"></span></h3>
+        <div class="today-row">
+          <svg id="dial" width="46" height="46" viewBox="-23 -23 46 46"></svg>
+          <div>
+            <div class="today-time" id="todayTime"></div>
+            <div class="today-meta" id="todayMeta"></div>
+          </div>
+        </div>
+        <div class="metrics" id="focus"></div>
+      </section>
+      <section class="panel">
+        <h3><span class="ico">▦</span> Last 2 weeks <span class="right">edits / day</span></h3>
+        <div class="week" id="week"></div>
+        <div class="week-foot"><span id="weekTotal"></span><span id="weekPeak"></span></div>
+      </section>
+      <section class="panel">
+        <h3><span class="ico">✦</span> Morning digest <span class="right" id="digestFile"></span></h3>
+        <div class="digest" id="digest"></div>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="stage-head">
+        <div class="tabs" id="tabs">
+          <button data-view="rings" class="active">Rings</button>
+          <button data-view="circle">Circle</button>
+          <button data-view="areas">Areas</button>
+          <button data-view="links">Links</button>
+          <button data-view="timeline">Timeline</button>
+          <button data-view="orbit">3D Orbit</button>
+        </div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="canvas" id="canvas"></div>
+      <div class="detail" id="detail"></div>
+      <div class="stage-foot">
+        <button class="btn" id="resetZoom">Reset view</button>
+        <span class="btn" id="updated"></span>
+      </div>
+    </section>
+
+    <aside class="col">
+      <section class="panel">
+        <h3><span class="ico">⚑</span> <span id="needsTitle">Needs you</span></h3>
+        <div class="needs-head"><span class="big" id="needsCount">0</span><span>overdue actions</span></div>
+        <div id="tasks"></div>
+      </section>
+      <section class="panel">
+        <h3><span class="ico">⟳</span> Routines <span class="right" id="routineCount"></span></h3>
+        <table class="routines">
+          <thead><tr><th>Time</th><th>Routine</th><th style="text-align:right">Status</th></tr></thead>
+          <tbody id="routines"></tbody>
+        </table>
+      </section>
+      <section class="panel">
+        <h3><span class="ico">◉</span> System <span class="nominal" id="nominal"></span></h3>
+        <div class="sys" id="system"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script src="vendor/d3.min.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

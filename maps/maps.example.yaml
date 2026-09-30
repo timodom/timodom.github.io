@@ -1,0 +1,64 @@
+# MAPS config. Copy to maps.yaml (git-ignored) and edit.
+
+vault: ~/Documents/Obsidian/MyVault   # your Obsidian vault folder
+title: MAPS                           # big name top-centre
+subtitle: Agentic OS
+owner: Tim                            # used in "Needs Tim"
+hub: CLAUDE.md                        # centre node (the Memory index, at vault root)
+digest_folder: Daily                  # where the morning digest is written
+
+# Top-level vault folder -> area name shown on the dashboard.
+# Folders not listed use their own name. Files at the vault root go to "system".
+areas:
+  "01 Business": business
+  "02 Clients": clients
+  "03 Career": career
+  "04 Trading": trading
+  "05 Personal": personal
+
+# Optional fixed colours per area (otherwise a palette is used).
+colors:
+  business: "#4f8cff"
+  clients: "#f5a623"
+  career: "#34d399"
+  trading: "#a78bfa"
+  personal: "#f472b6"
+  system: "#94a3b8"
+
+# Shown in the Today panel. Edit freely.
+focus:
+  - label: Deep work
+    value: 3h 00m
+    progress: 0.4
+
+limits:
+  claude_runs_per_day: 3      # hard cap across all Claude routines
+  allowed_tools:              # default tool allowlist for headless Claude runs
+    - Read
+    - Glob
+    - Grep
+    - Edit(./Daily/**)        # Claude may only write inside Daily/
+
+claude_bin: claude            # full path if cron can't find it (see README)
+
+routines:
+  - name: vault-index         # local, no Claude: refresh the dashboard
+    time: "00:00"
+    command: build_data
+    where: MAC
+
+  - name: morning-digest
+    time: "07:00"
+    days: [mon, tue, wed, thu, fri]
+    prompt: prompts/morning-digest.md
+    max_turns: 12
+    timeout: 900
+    where: MAC
+
+  - name: vault-lint
+    time: "21:15"
+    prompt: prompts/vault-lint.md
+    max_turns: 10
+    timeout: 900
+    where: MAC
+    enabled: false            # turn on once the digest has proved useful

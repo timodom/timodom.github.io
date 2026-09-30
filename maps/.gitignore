@@ -1,0 +1,6 @@
+# Personal data never leaves your laptop
+maps.yaml
+logs/
+dashboard/data/data.js
+dashboard/data/*.tmp
+__pycache__/
