@@ -260,7 +260,7 @@ public class EdgeRangeBreakoutBot : Indicator
 		{
 			var k = GetCandle(bar - 1);
 			var et = ToEt(k.Time);
-			_lastBarEt = et.ToString("ddd HH:mm");
+			_lastBarEt = et.ToString("MM.dd.yy HH:mm");
 			_engine.Process(new RangeBar(bar - 1, et, k.Open, k.High, k.Low, k.Close, k.Volume, k.Delta));
 			TrackDay(bar - 1, et);
 		}
@@ -330,7 +330,7 @@ public class EdgeRangeBreakoutBot : Indicator
 			t.Reason = reason;
 		}
 
-		_lastEvent = $"{reason}: {pnl:N0}";
+		_lastEvent = $"{reason}: {Money(pnl)}";
 
 		// No orders from here: if the engine closed on a bar close while the bot still holds a
 		// position, ManageLive sees "position but not in trade" and runs one guarded flatten.
@@ -892,6 +892,9 @@ public class EdgeRangeBreakoutBot : Indicator
 	// Near-opaque chart background behind tags and captions so candles don't show through.
 	private static readonly Color ChartBg = Color.FromArgb(235, 20, 24, 34);
 
+	// Signed dollars: +$1,234 / -$917 / $0.
+	private static string Money(decimal v) => v.ToString("+$#,0;-$#,0;$0");
+
 	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);
 
 	private DateTime ToEt(DateTime time) =>
@@ -924,7 +927,7 @@ public class EdgeRangeBreakoutBot : Indicator
 			return;
 
 		var e = _engine;
-		var mode = !_liveTrading ? "SIMULATION" : _killedForDay ? "LIVE - paused (loss cap)" : _realtime ? "LIVE" : "LIVE - waiting for ticks";
+		var mode = !_liveTrading ? "SIMULATION (no orders)" : _killedForDay ? "LIVE - paused (loss cap)" : _realtime ? "LIVE" : "LIVE - waiting for ticks";
 
 		_rows.Clear();
 		_rows.Add(new PanelRow("Mode", mode, _liveTrading ? Palette.Down : Palette.Muted));
@@ -944,13 +947,13 @@ public class EdgeRangeBreakoutBot : Indicator
 			_rows.Add(new PanelRow("Position (bot)", NetPosition().ToString("N0"), Palette.Of(NetPosition())));
 
 		_rows.Add(new PanelRow("Last event", _lastEvent, Palette.Muted));
-		_rows.Add(new PanelRow("Day P&L (sim)", e.DayPnl.ToString("N0"), Palette.Of(e.DayPnl)));
+		_rows.Add(new PanelRow("Day P&L (sim)", Money(e.DayPnl), Palette.Of(e.DayPnl)));
 		_rows.Add(new PanelRow("Trades", e.Trades.ToString(), Palette.Muted));
 		_rows.Add(new PanelRow("Win rate", e.Trades == 0 ? "-" : $"{100m * e.Wins / e.Trades:N0}%", Palette.Muted));
 		_rows.Add(new PanelRow("Profit factor", e.GrossLoss == 0 ? "-" : (e.GrossWin / e.GrossLoss).ToString("N2"), e.GrossWin >= e.GrossLoss ? Palette.Up : Palette.Down));
-		_rows.Add(new PanelRow("Net", e.Net.ToString("N0"), Palette.Of(e.Net)));
-		_rows.Add(new PanelRow("Avg trade", e.Trades == 0 ? "-" : (e.Net / e.Trades).ToString("N0"), Palette.Of(e.Net)));
-		_rows.Add(new PanelRow("Max drawdown", e.MaxDrawdown.ToString("N0"), e.MaxDrawdown > 0 ? Palette.Down : Palette.Muted));
+		_rows.Add(new PanelRow("Net", Money(e.Net), Palette.Of(e.Net)));
+		_rows.Add(new PanelRow("Avg trade", e.Trades == 0 ? "-" : Money(e.Net / e.Trades), Palette.Of(e.Net)));
+		_rows.Add(new PanelRow("Max drawdown", $"{e.MaxDrawdown:$#,0}", e.MaxDrawdown > 0 ? Palette.Down : Palette.Muted));
 
 		_dashboard.Render(context, Container.Region, "Edge Range Breakout Bot", _rows);
 	}

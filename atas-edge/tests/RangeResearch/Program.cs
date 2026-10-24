@@ -114,6 +114,17 @@ Row("IB-60 immediate, max 160t", RunEngine(s => { s.RangeEnd = new(10, 30, 0); s
 Row("Mid-IB momentum: ORB-5 immediate", RunEngine(s => { s.RangeEnd = new(9, 35, 0); s.Entry = RangeEntry.Immediate; }));
 Row("Mid-IB momentum: ORB-10 immediate", RunEngine(s => { s.RangeEnd = new(9, 40, 0); s.Entry = RangeEntry.Immediate; }));
 
+// --trades-out file.csv: every trade of the retest (v1) and immediate (v2) variants, for charts.
+var outIdx = Array.IndexOf(args, "--trades-out");
+if (outIdx >= 0)
+{
+	var lines = new List<string> { "version,date,dir,pnl,reason" };
+	foreach (var (ver, list) in new[] { ("v1", baseline), ("v2", RunEngine(s => s.Entry = RangeEntry.Immediate)) })
+		lines.AddRange(list.Select(x => $"{ver},{x.Day:yyyy-MM-dd},{x.Dir},{x.Pnl.ToString(inv)},{x.Reason}"));
+	File.WriteAllLines(args[outIdx + 1], lines);
+	Console.WriteLine($"Wrote {lines.Count - 1} trades to {args[outIdx + 1]}");
+}
+
 Header("BREAKOUT BY REGIME: ORB-15 trades bucketed by 15-min IB width / avg daily range (prior 14 days)");
 foreach (var (label, entry) in new[] { ("retest", RangeEntry.Retest), ("immediate", RangeEntry.Immediate) })
 {
