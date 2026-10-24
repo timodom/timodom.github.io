@@ -41,6 +41,34 @@ wider than 40 ticks — too few to mean anything. B and E trade risk for hit rat
 C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
 Trading was left OFF.
 
+## Research run 2026-10-24 (offline harness on exported bars)
+
+Tools: `Edge.Research` (bar exporter indicator) and `tests/RangeResearch` (offline harness running
+the bot's own engine). The harness reproduced the ATAS dashboard baseline exactly (53 trades, 42%,
+PF 0.88, −$2,587, max DD $9,017), so its engine numbers are the bot's numbers.
+
+**Data caveat (important).** The chart is ESZ6. It only became the traded ES contract at the
+roll: daily volume jumped from ~12k to ~844k contracts on **2026-09-14**. Before that the "200
+days" are thin back-month prints (all of August: ~22k contracts vs 18.5M in September), so every
+backtest on this chart so far mixed ~6 weeks of real ES with months of unrepresentative data.
+
+| Variant (engine) | Full file: trades / win / PF / net | Liquid only (30 days from 2026-09-14) |
+|---|---|---|
+| Baseline ORB-15 retest | 53 / 42% / 0.88 / −$2,587 | 17 / 41% / 0.85 / −$993 |
+| ORB-15 **immediate** entry | 78 / 56% / 1.45 / +$13,238 (train 1.48, test 1.35) | 24 / 58% / 1.62 / +$5,029 (train 2.78, **test 0.59**) |
+| IB-30 retest / immediate | PF 0.72 / 1.00 | PF 0.69 / 0.85 |
+| IB-60 retest / immediate (max 160t) | PF 1.05 / 1.06, DD $11–13k | PF 0.72 / 1.05, DD $6.8–7.8k |
+| ORB-5 immediate (mid-IB momentum) | PF 0.95 | PF 1.09 (train 1.72, test 0.38) |
+| ORB-10 immediate (mid-IB momentum) | PF 1.20 | PF 1.30 (train 2.45, test 0.41) |
+| Rotation, fade first failed IB probe | IB-15/30/60, IBM or half target: PF 0.54–1.00 overall; no bucket positive in both halves with >10 trades | 13 trades, PF 0.73 |
+
+**Reading.** Immediate entry beat retest in every comparison on the full file and over the clean
+30 days as a whole, consistent with the retest limit being filled mainly by failing breakouts.
+But 30 real days give 6–24 trades per row and results flip between train and test, so **nothing
+here is statistically established**. Wide-IB rotation, as tested, shows no support yet. Next
+step: export the earlier contracts (ESU6 for ~June–Sep 11, ESM6 before that) and stitch them by
+roll date to get ~200 genuine days, then rerun.
+
 ## Install
 
 - Build: `dotnet build atas-edge\Edge.Strategies -c Release`

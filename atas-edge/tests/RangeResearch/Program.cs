@@ -29,6 +29,15 @@ foreach (var line in File.ReadLines(path).Skip(1))
 		decimal.Parse(p[4], inv), decimal.Parse(p[5], inv), decimal.Parse(p[6], inv)));
 }
 
+// --from yyyy-MM-dd: drop bars before a date (e.g. before a contract roll, when the back month
+// barely traded and its ranges are not real ES price action).
+var fromIdx = Array.IndexOf(args, "--from");
+if (fromIdx >= 0)
+{
+	var from = DateTime.ParseExact(args[fromIdx + 1], "yyyy-MM-dd", inv);
+	bars = bars.Where(b => b.Et.Date >= from).Select((b, i) => b with { Index = i }).ToList();
+}
+
 var rth = bars.Where(b => b.Et.TimeOfDay >= new TimeSpan(9, 30, 0) && b.Et.TimeOfDay < new TimeSpan(16, 0, 0)).ToList();
 var days = rth.GroupBy(b => b.Et.Date).Where(g => g.Count() >= 60).Select(g => g.Key).OrderBy(d => d).ToList();
 var splitDay = days[(int)(days.Count * 0.7)];
