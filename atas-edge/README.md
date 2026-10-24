@@ -53,4 +53,6 @@ tests/
   RangeBreakoutEngine.Tests  Synthetic-bar checks for the engine (dotnet run, no ATAS needed)
 ```
 
+Research: export chart bars to CSV and test ideas offline with `Edge Bar Export (research)` and `tests/RangeResearch`. Guide and idea backlog: [`docs/edge-bar-export.md`](docs/edge-bar-export.md).
+
 Calculation lives in `Core/` and display lives in the indicator files. That way Signals reuses the exact Trend Band and CVD math, and you don't need those indicators loaded on the chart.
