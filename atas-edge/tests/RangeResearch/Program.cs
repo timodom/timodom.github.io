@@ -182,6 +182,22 @@ foreach (var (ibName, ibEnd) in new[] { ("IB-15", new TimeSpan(9, 45, 0)), ("IB-
 	}
 }
 
+// ---------- 4: combined regime system ----------
+// Narrow IB-15 (IB/ADR < 0.25): ORB-15 immediate breakout. Middle: no trade. Wide (>= 0.40):
+// IB-15 rotation to IBM. Also shown with 1 tick of slippage per side ($25 per round trip),
+// since both modes enter at a bar close with a market order.
+Header("COMBINED REGIME SYSTEM (IB-15 / avg daily range)");
+var brk = RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRangeTicks = 10000; })
+	.Where(x => { var r = IbRatio(x.Day, new(9, 45, 0)); return r >= 0 && r < 0.25m; }).ToList();
+var rot = Rotation(new(9, 45, 0), 1.0m, 2, 0.40m, 9);
+var combo = brk.Concat(rot).OrderBy(x => x.Day).ToList();
+Row("Breakout leg (IB/ADR < 0.25, immediate)", brk);
+Row("Rotation leg (IB/ADR >= 0.40, to IBM)", rot);
+Row("Combined", combo);
+Row("Combined, 1 tick slippage per side", combo.Select(x => new Trade { Day = x.Day, Dir = x.Dir, Entry = x.Entry, Risk = x.Risk, Pnl = x.Pnl - 2 * TickValue, Reason = x.Reason }).ToList());
+Row("Wide-IB breakouts the combo avoids (>= 0.35)", RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRangeTicks = 10000; })
+	.Where(x => IbRatio(x.Day, new(9, 45, 0)) >= 0.35m).ToList());
+
 Console.WriteLine();
 Console.WriteLine("IB/ADR distribution (share of days):");
 foreach (var (ibName, ibEnd) in new[] { ("IB-15", new TimeSpan(9, 45, 0)), ("IB-30", new TimeSpan(10, 0, 0)), ("IB-60", new TimeSpan(10, 30, 0)) })

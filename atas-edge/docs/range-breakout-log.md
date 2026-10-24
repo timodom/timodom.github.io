@@ -15,7 +15,7 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 | Protect exit (engine) | 7/7 synthetic-bar tests pass (`atas-edge/tests/RangeBreakoutEngine.Tests`) |
 | Live entry limit placement | Verified in Market Replay: registers 0.02–0.3 s after the breakout bar closes |
 | Live order handling after the 2026-10-23 incident fix (`f81d05b`) | **Not yet run against an account.** Audit a Replay session before any live use |
-| Edge: an actual edge | **Not shown.** 200-day backtest: 53 trades, PF 0.88, −$2,587; no tested variant clearly better (see Backtest 2026-10-24) |
+| Edge: an actual edge | Current bot: **no** (continuous ES 193 days, PF 0.92, test half 0.53). **Candidate regime system** (narrow IB → immediate breakout, wide IB → rotation): PF 1.60, train 1.51 / test 1.80, +$17k, 88 trades — promising, not yet forward-tested |
 
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
@@ -40,6 +40,55 @@ row but leaves 10 trades in ~140 sessions because most 09:30–09:45 ES ranges i
 wider than 40 ticks — too few to mean anything. B and E trade risk for hit rate and lose more.
 C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
 Trading was left OFF.
+
+## Research run 2 — continuous ES, 193 days (2026-01-18 .. 2026-10-23)
+
+Export of the **continuous ES** contract (`ES-54819.csv`, 25–38M contracts every month, no roll
+artifacts). Train = first 70% of days (to 2026-08-03), test = last 30%. 1 ES, $4 commission.
+
+**Engine variants**
+
+| Variant | Trades | Win | PF | Net | Max DD | Train PF | Test PF |
+|---|---|---|---|---|---|---|---|
+| Baseline ORB-15 retest (current bot) | 82 | 43% | 0.92 | −$2,766 | $9,061 | 1.31 | **0.53** |
+| ORB-15 immediate | 108 | 52% | 1.34 | +$15,018 | $8,776 | 1.65 | 1.01 |
+| IB-30 retest / immediate | 44 / 55 | | 0.86 / 0.81 | | | | |
+| IB-60 retest / immediate | 95 / 113 | | 1.03 / 1.02 | | $12–14k | | 0.75 / 0.88 |
+| ORB-5 immediate (mid-IB momentum) | 198 | 49% | 1.27 | +$21,171 | $7,284 | 1.40 | 1.01 |
+| ORB-10 immediate | 149 | 49% | 1.16 | +$10,254 | $9,114 | 1.29 | 0.95 |
+
+**Breakout by regime** (ORB-15 immediate, IB-15 width ÷ prior-14-day average RTH range)
+
+| IB/ADR | Trades | Win | PF | Net | Train PF | Test PF |
+|---|---|---|---|---|---|---|
+| < 0.15 | 7 | 57% | 1.44 | +$1,072 | 1.14 | 2.72 |
+| 0.15–0.25 | 59 | 56% | **1.56** | +$12,677 | 1.51 | **1.65** |
+| 0.25–0.35 | 61 | 48% | 1.16 | +$5,681 | 1.29 | 0.73 |
+| ≥ 0.35 | 49 | 41% | **0.56** | **−$19,596** | 0.55 | 0.58 |
+
+**Rotation** (fade first failed probe of IB-15 high/low to IBM): ≥ 0.40 → 22 trades, 64%, PF 2.01,
++$3,325 (train 1.78, test 3.28); 0.25–0.40 → PF 0.51 (both halves negative). IB-30/60 rotation
+and half-way targets: no robust bucket.
+
+**Combined regime system** — narrow (IB/ADR < 0.25) = immediate breakout; wide (≥ 0.40) =
+rotation to IBM; middle = no trade:
+
+| | Trades | Win | PF | Net | Max DD | Train PF | Test PF |
+|---|---|---|---|---|---|---|---|
+| Combined | 88 | 58% | **1.60** | **+$17,073** | $4,728 | 1.51 | **1.80** |
+| Combined, 1 tick slippage per side | 88 | 58% | 1.51 | +$14,873 | $4,978 | 1.43 | 1.68 |
+
+**Reading.**
+- The most robust single finding: **breakouts on wide-IB days lose** (49 trades, PF 0.55 train /
+  0.58 test, −$19.6k). They are where the current bot's losses come from.
+- **Narrow-IB immediate breakouts** hold in both halves (PF 1.51 / 1.65, 59 trades).
+- Immediate entry beats the retest limit across the board (adverse selection of the limit).
+- The combined regime system is positive in both halves and after slippage, with half the
+  drawdown of the baseline.
+- Caveats: one instrument, ~9 months, one market period; 88 trades total and only 22 rotation
+  trades. Bucket edges were coded before the real data was seen, and the narrow-breakout /
+  wide-rotation split was the owner's stated hypothesis before testing, which limits (not
+  removes) data-snooping risk. Needs forward testing before any money.
 
 ## Research run 2026-10-24 (offline harness on exported bars)
 
