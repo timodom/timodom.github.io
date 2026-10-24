@@ -16,9 +16,16 @@ chart drawing and live order handling are identical; only the settings and safeg
 | Max daily loss | Setting ($, **0 = instrument profile**) | Setting ($, **0 = instrument profile**) |
 | Max risk per trade | Setting ($, 0 = off) | Setting ($, 0 = off) |
 | Contracts, Live Trading, Flatten on stop, UTC checkbox, dashboard, chart colors | Settings | Settings |
-| Supported charts | Any (other symbols use the ES profile) | **ES/MES on 5- or 15-minute, NQ/MNQ on 15-minute**; anything else shows "Not running" and does nothing |
+| Supported charts | Any (other symbols use the ES profile) | **ES, MES, NQ, MNQ on 5- or 15-minute charts**; anything else shows "Not running" and does nothing |
+| Decision bars | Setting: Auto / Chart bars / 15-minute closes | Auto (locked) |
 
 Both editions show the chart (symbol, bar size and profile) on the dashboard.
+
+**Decision bars (Auto).** NQ/MNQ always decide on 15-minute closes, their validated setup; on a
+5-minute chart the bot groups each three 5m bars into a 15m block (`Core/BarAggregator.cs`) and the
+dashboard reads e.g. "NQ · 5m chart · trades on 15m closes". ES/MES decide on the chart's own 5m or
+15m bars. Product copy: "NQ signals are taken on 15-minute closes, its tested setup; run it on any
+5- or 15-minute chart."
 
 ## Instrument profiles
 

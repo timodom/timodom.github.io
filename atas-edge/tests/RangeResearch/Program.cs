@@ -46,6 +46,21 @@ if (fromIdx >= 0)
 	bars = bars.Where(b => b.Et.Date >= from).Select((b, i) => b with { Index = i }).ToList();
 }
 
+// --aggregate 15: group the bars into 15-minute blocks with the same BarAggregator the bot uses,
+// to check that a 5m chart deciding on 15m closes matches a real 15m chart.
+var aggIdx = Array.IndexOf(args, "--aggregate");
+if (aggIdx >= 0)
+{
+	var src = (int)bars.Zip(bars.Skip(1), (a, b) => (b.Et - a.Et).TotalMinutes).Where(m => m > 0).OrderBy(m => m).ElementAt(bars.Count / 2);
+	var agg = new BarAggregator(int.Parse(args[aggIdx + 1]), src);
+	var grouped = new List<Bar>();
+	foreach (var b in bars)
+		foreach (var (k, _) in agg.Add(new RangeBar(b.Index, b.Et, b.Open, b.High, b.Low, b.Close, b.Volume, b.Delta)))
+			grouped.Add(new Bar(grouped.Count, k.TimeEt, k.Open, k.High, k.Low, k.Close, k.Volume, k.Delta));
+	Console.WriteLine($"Aggregated {bars.Count} {src}m bars into {grouped.Count} {args[aggIdx + 1]}m bars");
+	bars = grouped;
+}
+
 var rth = bars.Where(b => b.Et.TimeOfDay >= new TimeSpan(9, 30, 0) && b.Et.TimeOfDay < new TimeSpan(16, 0, 0)).ToList();
 // Bar size from the data (5m, 15m...), so "full day" and the rotation confirm window mean the same
 // amount of time whatever the chart. A full RTH day needs 75% of its 390 minutes of bars.

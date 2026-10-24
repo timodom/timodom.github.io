@@ -20,6 +20,26 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
 
+## Decision bars: NQ on a 5m chart (2026-10-24)
+
+Owner-approved design: NQ/MNQ decide on 15-minute closes even on a 5-minute chart (NQ on 5m
+closes: PF 1.04, max DD $38,228 vs 15m PF 1.21, $20,719, same 238 days). `Core/BarAggregator.cs`
+groups 5m bars into clock-aligned 15m blocks (:00/:15/:30/:45; emitted when the :10/:25/:40/:55 bar
+closes); the bot and the harness (`--aggregate 15`) share it.
+
+Check (NQ, 600t, $1,500 cap, $4 commission, 2025-11-09 .. 2026-10-23):
+
+| Input | Bars | Trades | Win | PF | Net | Max DD |
+|---|---|---|---|---|---|---|
+| Real 15m file (`NQ-67287.csv --from 2025-11-09`) | 22,600 | 148 | 51% | 1.21 | +$35,078 | $20,719 |
+| 5m file grouped to 15m (`NQ-67797.csv --aggregate 15`) | 22,600 | 148 | 51% | 1.21 | +$35,078 | $20,719 |
+| 5m file, 5m decisions | 67,797 | 153 | 48% | 1.04 | +$6,713 | $38,228 |
+
+Exact match. Stops and targets in the simulation are checked on the 15m block (stop first when
+both are touched), as in the harness; live, the broker's resting orders and the tick-by-tick
+Protect act intrabar either way. Retest timeout bars count chart (5m) bars under aggregation;
+irrelevant to the validated immediate entry.
+
 ## Max risk per trade (2026-10-24)
 
 New engine setting `MaxRiskPerTrade` ($ for the whole position at the stop, 0 = off, default off):

@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\Edge.Indicators\Core\RangeBreakoutEngine.cs" Link="RangeBreakoutEngine.cs" />
+    <Compile Include="..\..\Edge.Indicators\Core\BarAggregator.cs" Link="BarAggregator.cs" />
   </ItemGroup>
 
 </Project>

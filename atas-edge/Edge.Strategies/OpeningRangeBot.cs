@@ -24,6 +24,14 @@ using OFT.Rendering.Context;
 using OFT.Rendering.Control;
 using OFT.Rendering.Tools;
 
+/// <summary>Which bars the strategy decides on; Auto follows the instrument's validated setup.</summary>
+public enum DecisionBars
+{
+	[Display(Name = "Auto")] Auto,
+	[Display(Name = "Chart bars")] ChartBars,
+	[Display(Name = "15-minute closes")] FifteenMinute
+}
+
 /// <summary>
 /// Opening range / initial balance breakout bot (default ORB-15 on ES 5m).
 /// Live trading OFF: simulates every trade on the chart and shows backtest stats.
@@ -85,6 +93,8 @@ public class OpeningRangeBot : Indicator
 	private int _userMinRange, _userMaxRange;
 #pragma warning restore CS0649
 	private string _profile = "-";
+	private BarAggregator _agg;
+	private DecisionBars _decision = DecisionBars.Auto;
 	private string _unsupported;
 	private string _chartLabel = "-";
 
@@ -122,6 +132,11 @@ public class OpeningRangeBot : Indicator
 
 	[Display(Name = "Chart bar times are UTC (check dashboard 'Bar time ET')", GroupName = "1. Session", Order = 50)]
 	public bool ChartTimeIsUtc { get => _chartTimeIsUtc; set { _chartTimeIsUtc = value; RecalculateValues(); } }
+
+#if !MARKET
+	[Display(Name = "Decision bars (Auto: NQ/MNQ on 15m closes, ES/MES on chart bars)", GroupName = "2. Entry", Order = 105)]
+	public DecisionBars Decision { get => _decision; set { _decision = value; RecalculateValues(); } }
+#endif
 
 #if !MARKET
 	[Display(Name = "Min range (ticks, 0 = instrument default)", GroupName = "1. Session", Order = 60)]
@@ -298,8 +313,22 @@ public class OpeningRangeBot : Indicator
 			var k = GetCandle(bar - 1);
 			var et = ToEt(k.Time);
 			_lastBarEt = et.ToString("MM.dd.yy HH:mm");
-			_engine.Process(new RangeBar(bar - 1, et, k.Open, k.High, k.Low, k.Close, k.Volume, k.Delta));
-			TrackDay(bar - 1, et);
+			var raw = new RangeBar(bar - 1, et, k.Open, k.High, k.Low, k.Close, k.Volume, k.Delta);
+
+			if (_agg is null)
+			{
+				_engine.Process(raw);
+				TrackDay(bar - 1, bar - 1, et);
+			}
+			else
+			{
+				// Deciding on 15-minute closes from a 5-minute chart: the engine only sees whole blocks.
+				foreach (var (block, first) in _agg.Add(raw))
+				{
+					_engine.Process(block);
+					TrackDay(first, block.Index, block.TimeEt);
+				}
+			}
 		}
 
 		// Runs even after the loss cap pauses new entries, so an exit in progress can finish.
@@ -752,7 +781,7 @@ public class OpeningRangeBot : Indicator
 	}
 
 	// Called once per closed bar, after the engine has seen it.
-	private void TrackDay(int bar, DateTime et)
+	private void TrackDay(int first, int bar, DateTime et)
 	{
 		if (_engine.State == RangeDayState.Waiting)
 			return;
@@ -762,7 +791,7 @@ public class OpeningRangeBot : Indicator
 		if (_engine.State == RangeDayState.Building)
 		{
 			if (box is null)
-				_boxes.Add(box = new DayBox { Day = _engine.Day, Start = bar });
+				_boxes.Add(box = new DayBox { Day = _engine.Day, Start = first });
 
 			box.End = bar;
 			box.High = _engine.High;
@@ -977,12 +1006,10 @@ public class OpeningRangeBot : Indicator
 			return;
 		}
 
-		// ES was validated on 5m and 15m; NQ on 15m only.
-		var nq = profile.Value.Name.EndsWith("NQ");
-
-		if (nq ? minutes != 15 : minutes is not (5 or 15))
+		// 5m or 15m charts; NQ/MNQ always decide on 15-minute closes (their validated setup).
+		if (minutes is not (5 or 15))
 		{
-			_unsupported = $"Unsupported timeframe ({minutes:0}m). Use a {(nq ? "15" : "5- or 15")}-minute chart.";
+			_unsupported = $"Unsupported timeframe ({minutes:0}m). Use a 5- or 15-minute chart.";
 			return;
 		}
 #endif
@@ -995,7 +1022,14 @@ public class OpeningRangeBot : Indicator
 		_s.MinRangeTicks = _userMinRange > 0 ? _userMinRange : p.MinRange;
 		_s.MaxRangeTicks = _userMaxRange > 0 ? _userMaxRange : p.MaxRange;
 		_s.MaxDailyLoss = _userDailyLoss > 0 ? _userDailyLoss : p.DailyLoss;
-		_chartLabel = $"{symbol} · {minutes:0}m · {p.Name} profile";
+		// Decision bars: NQ/MNQ were validated on 15-minute closes (on 5m closes NQ tested PF 1.04 vs
+		// 1.21), ES/MES on the chart's own 5m or 15m bars. A 5m chart deciding on 15m feeds the engine
+		// grouped blocks, which reproduces the 15m chart exactly (range-breakout-log.md).
+		var fifteen = _decision == DecisionBars.FifteenMinute || _decision == DecisionBars.Auto && p.Name.EndsWith("NQ");
+		_agg = fifteen && minutes == 5 ? new BarAggregator(15, 5) : null;
+		_chartLabel = _agg != null
+			? $"{symbol} · 5m chart · trades on 15m closes · {p.Name} profile"
+			: $"{symbol} · {minutes:0}m · {p.Name} profile";
 	}
 
 	private static TimeZoneInfo FindEastern()

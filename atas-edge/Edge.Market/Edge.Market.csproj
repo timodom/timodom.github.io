@@ -24,6 +24,7 @@
     <Compile Include="..\Edge.Indicators\Core\DragPanel.cs" Link="Shared\DragPanel.cs" />
     <Compile Include="..\Edge.Indicators\Core\Calcs.cs" Link="Shared\Calcs.cs" />
     <Compile Include="..\Edge.Indicators\Core\RangeBreakoutEngine.cs" Link="Shared\RangeBreakoutEngine.cs" />
+    <Compile Include="..\Edge.Indicators\Core\BarAggregator.cs" Link="Shared\BarAggregator.cs" />
   </ItemGroup>
 
   <ItemGroup>
