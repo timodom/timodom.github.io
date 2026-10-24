@@ -1,8 +1,8 @@
 # Range Breakout Engine — Build Spec
 
-**Status:** Spec only. Do not build until the manual test below says the idea is worth it.
+**Status:** Steps 1–3 drafted as `Edge.Indicators/EdgeRangeBreakout.cs` (simulation only, no orders). Logic verified on synthetic ES bars; not yet built against real ATAS.
 **Platform:** ATAS (C#), `ChartStrategy`. Lives in `atas-edge/`, reuses `Core/` and `EdgeTrailManager` logic.
-**Market:** MNQ (micro Nasdaq futures), intraday only.
+**Market:** ES (E-mini S&P 500), 5-minute chart, intraday only. Tick 0.25 = $12.50.
 
 ## Why this, not the others
 
@@ -52,16 +52,17 @@ References: https://marketplace.atas.net/product/tms-orb · https://einfachtrade
 - Backtest stats over loaded history: trades, win rate, profit factor, net P&L (ticks and $), max drawdown, average trade.
 
 ## Build order
-1. Range plus breakout markers only (indicator, no orders). Check visually on MNQ.
+1. Range plus breakout markers only (indicator, no orders). Check visually on ES 5m.
 2. Simulated fills and the backtest panel.
 3. Filters.
 4. Live order routing (sim account first).
 
 ## Before writing any code: manual test
-Use ATAS Market Replay on MNQ: ORB-15, retest entry, stop at the opposite edge, target 1.5R, no filters. Log 30–50 trades. Continue only if the results (with and without the delta filter) show a real edge after commissions.
+Use ATAS Market Replay on ES 5m: ORB-15, retest entry, stop at the opposite edge, target 1.5R, no filters. Log 30–50 trades. Continue only if the results (with and without the delta filter) show a real edge after commissions.
 
 ## Open decisions (owner decides)
-- [ ] ORB 15 or IB 60 as the primary window
+- [x] Market: ES, 5-minute chart
+- [ ] ORB 15 (default) or IB 60 as the primary window
 - [ ] Retest vs immediate entry as the default
 - [ ] Contracts per trade and daily loss limit
 - [ ] Where the code lives: this public Pages repo, or a new private repo (recommended)

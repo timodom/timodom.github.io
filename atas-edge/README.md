@@ -11,6 +11,8 @@ Clean-room ATAS (C#) versions of the six HolyGrailAlgo NinjaTrader tools. HGA do
 | Channel Breaks | `Edge Channel Breaks` | Uses a Donchian channel. Breakouts need above-average volume and delta in the breakout direction. Fades need a wick through the channel edge and a close back inside. Choose Breakouts, Fades or Both. The dashboard shows distance to the channel edges. |
 | Strength | `Edge Strength` | Band **color** shows direction and force (smoothed RSI). Band **width** shows trend efficiency, so it widens in clean trends and narrows in chop. Bull/Bear prints mark confirmed swings that were RSI-extreme or RSI-divergent. The dashboard shows RSI, strength and efficiency. |
 
+**New: `Edge Range Breakout (sim)`**: an opening range / initial balance breakout simulator for ES on 5-minute bars, with a backtest panel. It places no orders. Spec: `docs/range-breakout-spec.md`.
+
 All panels can be dragged with the mouse, and their position is saved with the chart template. Every signal has an optional ATAS alert.
 
 ## Build and install
