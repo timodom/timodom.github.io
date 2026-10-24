@@ -25,6 +25,7 @@ var Commission = Arg("--commission", 4m);
 var MinRange = (int)Arg("--min-range", 8);
 var MaxRange = (int)Arg("--max-range", 80);
 var MaxLoss = Arg("--max-loss", 500m);
+var MaxRisk = Arg("--max-risk", 0m);
 
 var bars = new List<Bar>();
 foreach (var line in File.ReadLines(path).Skip(1))
@@ -71,7 +72,7 @@ decimal IbRatio(DateTime day, TimeSpan end)
 
 List<Trade> RunEngine(Action<RangeBreakoutSettings> tweak)
 {
-	var s = new RangeBreakoutSettings { TickValue = TickValue, Commission = Commission, MinRangeTicks = MinRange, MaxRangeTicks = MaxRange, MaxDailyLoss = MaxLoss };
+	var s = new RangeBreakoutSettings { TickValue = TickValue, Commission = Commission, MinRangeTicks = MinRange, MaxRangeTicks = MaxRange, MaxDailyLoss = MaxLoss, MaxRiskPerTrade = MaxRisk };
 	tweak?.Invoke(s);
 	var e = new RangeBreakoutEngine(s) { TickSize = Tick };
 	var trades = new List<Trade>();
@@ -135,6 +136,15 @@ if (outIdx >= 0)
 Header($"MAX RANGE SWEEP (immediate entry; min {MinRange}t, tick ${TickValue}, daily loss cap ${MaxLoss})");
 foreach (var mr in new[] { 40, 60, 80, 120, 160, 200, 240, 320, 400, 100000 })
 	Row($"Immediate, max range {(mr >= 100000 ? "none" : mr + "t")}", RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRangeTicks = mr; }));
+
+// --risk-list 100,200,...: sweep the per-trade risk limit ($ for 1 contract) on immediate entry.
+var rlIdx = Array.IndexOf(args, "--risk-list");
+if (rlIdx >= 0)
+{
+	Header($"MAX RISK PER TRADE SWEEP (immediate, max range {MaxRange}t, tick ${TickValue})");
+	foreach (var r in args[rlIdx + 1].Split(',').Select(x => decimal.Parse(x, inv)))
+		Row($"Immediate, max risk {(r == 0 ? "off" : "$" + r)}", RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRiskPerTrade = r; }));
+}
 
 Header("BREAKOUT BY REGIME: ORB-15 trades bucketed by 15-min IB width / avg daily range (prior 14 days)");
 foreach (var (label, entry) in new[] { ("retest", RangeEntry.Retest), ("immediate", RangeEntry.Immediate) })

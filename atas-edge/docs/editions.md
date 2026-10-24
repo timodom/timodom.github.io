@@ -12,12 +12,29 @@ chart drawing and live order handling are identical; only the settings and safeg
 | Order tag in ATAS logs | `OpeningRange <role> #<trade id>` | same |
 | Entry | Setting, **defaults to Immediate** | **Locked to Immediate** (the validated setup) |
 | Range times, cutoffs, range limits, entry options, filters, stop/target types, breakeven, Protect, trade/loser limits | All settings | Hidden, locked at defaults |
-| Tick value, commission | Settings | Set from the instrument |
-| Max daily loss | Setting ($, 0 = off) | Setting ($, **0 = instrument default**: ES $500, MES $50) |
+| Tick value, commission, min/max range | Settings, **0 = instrument profile** | Set from the instrument profile |
+| Max daily loss | Setting ($, **0 = instrument profile**) | Setting ($, **0 = instrument profile**) |
+| Max risk per trade | Setting ($, 0 = off) | Setting ($, 0 = off) |
 | Contracts, Live Trading, Flatten on stop, UTC checkbox, dashboard, chart colors | Settings | Settings |
-| Supported charts | Any | **ES or MES, 5- or 15-minute only**; anything else shows "Not running" and does nothing |
+| Supported charts | Any (other symbols use the ES profile) | **ES/MES on 5- or 15-minute, NQ/MNQ on 15-minute**; anything else shows "Not running" and does nothing |
 
-Both editions show the chart (symbol and bar size) on the dashboard.
+Both editions show the chart (symbol, bar size and profile) on the dashboard.
+
+## Instrument profiles
+
+Picked from the chart's symbol. Any value set above 0 in the in-house settings overrides it.
+
+| Profile | Tick value | Commission (RT) | Min range | Max range | Daily loss cap | Source |
+|---|---|---|---|---|---|---|
+| ES | $12.50 | $4 | 8t | 80t | $500 | ES 15m, 709 sessions |
+| MES | $1.25 | $1 | 8t | 80t | $50 | ES ÷ 10 |
+| NQ | $5 | $4 | 32t | 600t | $1,500 | NQ test (range-breakout-log.md) |
+| MNQ | $0.50 | $1 | 32t | 600t | $150 | NQ ÷ 10 |
+
+**Max risk per trade** (default off) skips a breakout whose stop would lose more than the limit for
+the whole position. Backtested 2026-10-24 (range-breakout-log.md): on MNQ $250 kept PF 1.40 with a
+smaller worst drawdown ($1,623 vs $2,088); on ES it mostly removes trades ($1,250 is neutral, $1,000
+and below hurt). Use it to fit an account's limits, not to raise profit.
 
 ## Validated setup the market edition locks
 

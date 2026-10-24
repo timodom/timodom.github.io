@@ -78,9 +78,13 @@ public class OpeningRangeBot : Indicator
 	private bool _liveProtectOn;
 	private decimal _brokerStop;
 	private volatile bool _modifyBusy;
-#if MARKET
-	private decimal _userDailyLoss;
-#endif
+	// User overrides; 0 = use the instrument profile picked from the chart's symbol.
+	// The market edition hides the range/tick/commission overrides, so they stay 0 there.
+#pragma warning disable CS0649
+	private decimal _userDailyLoss, _userTickValue, _userCommission;
+	private int _userMinRange, _userMaxRange;
+#pragma warning restore CS0649
+	private string _profile = "-";
 	private string _unsupported;
 	private string _chartLabel = "-";
 
@@ -120,13 +124,13 @@ public class OpeningRangeBot : Indicator
 	public bool ChartTimeIsUtc { get => _chartTimeIsUtc; set { _chartTimeIsUtc = value; RecalculateValues(); } }
 
 #if !MARKET
-	[Display(Name = "Min range (ticks)", GroupName = "1. Session", Order = 60)]
+	[Display(Name = "Min range (ticks, 0 = instrument default)", GroupName = "1. Session", Order = 60)]
 	[Range(0, 10000)]
-	public int MinRangeTicks { get => _s.MinRangeTicks; set { _s.MinRangeTicks = value; RecalculateValues(); } }
+	public int MinRangeTicks { get => _userMinRange; set { _userMinRange = value; RecalculateValues(); } }
 
-	[Display(Name = "Max range (ticks)", GroupName = "1. Session", Order = 70)]
-	[Range(1, 10000)]
-	public int MaxRangeTicks { get => _s.MaxRangeTicks; set { _s.MaxRangeTicks = value; RecalculateValues(); } }
+	[Display(Name = "Max range (ticks, 0 = instrument default)", GroupName = "1. Session", Order = 70)]
+	[Range(0, 100000)]
+	public int MaxRangeTicks { get => _userMaxRange; set { _userMaxRange = value; RecalculateValues(); } }
 
 	[Display(Name = "Entry", GroupName = "2. Entry", Order = 100)]
 	public RangeEntry Entry { get => _s.Entry; set { _s.Entry = value; RecalculateValues(); } }
@@ -187,28 +191,26 @@ public class OpeningRangeBot : Indicator
 	public int MaxLosers { get => _s.MaxLosers; set { _s.MaxLosers = value; RecalculateValues(); } }
 #endif
 
-#if MARKET
 	[Display(Name = "Max daily loss ($, 0 = instrument default)", GroupName = "5. Risk", Order = 420)]
 	[Range(0, 1000000)]
 	public decimal MaxDailyLoss { get => _userDailyLoss; set { _userDailyLoss = value; RecalculateValues(); } }
-#else
-	[Display(Name = "Max daily loss ($, 0 = off)", GroupName = "5. Risk", Order = 420)]
+
+	[Display(Name = "Max risk per trade ($, 0 = off): skip trades whose stop would lose more", GroupName = "5. Risk", Order = 425)]
 	[Range(0, 1000000)]
-	public decimal MaxDailyLoss { get => _s.MaxDailyLoss; set { _s.MaxDailyLoss = value; RecalculateValues(); } }
-#endif
+	public decimal MaxRiskPerTrade { get => _s.MaxRiskPerTrade; set { _s.MaxRiskPerTrade = value; RecalculateValues(); } }
 
 	[Display(Name = "Contracts", GroupName = "5. Risk", Order = 430)]
 	[Range(1, 1000)]
 	public int Contracts { get => _s.Contracts; set { _s.Contracts = value; RecalculateValues(); } }
 
 #if !MARKET
-	[Display(Name = "Tick value ($)  ES 12.50, MES 1.25", GroupName = "5. Risk", Order = 440)]
-	[Range(0.01, 10000)]
-	public decimal TickValue { get => _s.TickValue; set { _s.TickValue = value; RecalculateValues(); } }
+	[Display(Name = "Tick value ($, 0 = instrument default)", GroupName = "5. Risk", Order = 440)]
+	[Range(0, 10000)]
+	public decimal TickValue { get => _userTickValue; set { _userTickValue = value; RecalculateValues(); } }
 
-	[Display(Name = "Commission per contract round trip ($)", GroupName = "5. Risk", Order = 450)]
+	[Display(Name = "Commission per contract round trip ($, 0 = instrument default)", GroupName = "5. Risk", Order = 450)]
 	[Range(0, 1000)]
-	public decimal Commission { get => _s.Commission; set { _s.Commission = value; RecalculateValues(); } }
+	public decimal Commission { get => _userCommission; set { _userCommission = value; RecalculateValues(); } }
 #endif
 
 	[Display(Name = "Show dashboard", GroupName = "6. Dashboard", Order = 500)]
@@ -265,6 +267,7 @@ public class OpeningRangeBot : Indicator
 		_engine.Entered += OnEntered;
 		_engine.StopMoved += OnStopMoved;
 		_engine.Exited += OnExited;
+		_engine.Skipped += (bar, dir, risk) => _lastEvent = $"Skipped {(dir > 0 ? "long" : "short")}: risk ${risk:N0} over limit";
 	}
 
 	protected override void OnCalculate(int bar, decimal value)
@@ -959,29 +962,40 @@ public class OpeningRangeBot : Indicator
 		_chartLabel = $"{symbol} · {minutes:0}m";
 		_unsupported = null;
 
+		// Instrument profiles. ES from the ~3-year ES test, NQ from the NQ test (range-breakout-log.md).
+		(string Name, decimal TickValue, decimal Commission, int MinRange, int MaxRange, decimal DailyLoss)? profile =
+			symbol.StartsWith("MES") ? ("MES", 1.25m, 1m, 8, 80, 50m)
+			: symbol.StartsWith("ES") ? ("ES", 12.5m, 4m, 8, 80, 500m)
+			: symbol.StartsWith("MNQ") ? ("MNQ", 0.5m, 1m, 32, 600, 150m)
+			: symbol.StartsWith("NQ") ? ("NQ", 5m, 4m, 32, 600, 1500m)
+			: null;
+
 #if MARKET
-		decimal tickValue, commission, dailyLoss;
-
-		if (symbol.StartsWith("MES"))
-			(tickValue, commission, dailyLoss) = (1.25m, 1m, 50m);
-		else if (symbol.StartsWith("ES"))
-			(tickValue, commission, dailyLoss) = (12.5m, 4m, 500m);
-		else
+		if (profile is null)
 		{
-			_unsupported = $"Unsupported instrument {symbol}. Use ES or MES.";
+			_unsupported = $"Unsupported instrument {symbol}. Use ES, MES, NQ or MNQ.";
 			return;
 		}
 
-		if (minutes is not (5 or 15))
+		// ES was validated on 5m and 15m; NQ on 15m only.
+		var nq = profile.Value.Name.EndsWith("NQ");
+
+		if (nq ? minutes != 15 : minutes is not (5 or 15))
 		{
-			_unsupported = $"Unsupported timeframe ({minutes:0}m). Use a 5- or 15-minute chart.";
+			_unsupported = $"Unsupported timeframe ({minutes:0}m). Use a {(nq ? "15" : "5- or 15")}-minute chart.";
 			return;
 		}
-
-		_s.TickValue = tickValue;
-		_s.Commission = commission;
-		_s.MaxDailyLoss = _userDailyLoss > 0 ? _userDailyLoss : dailyLoss;
 #endif
+
+		// In-house falls back to the ES profile on other symbols; every value can be overridden.
+		var p = profile ?? ("ES defaults", 12.5m, 4m, 8, 80, 500m);
+		_profile = p.Name;
+		_s.TickValue = _userTickValue > 0 ? _userTickValue : p.TickValue;
+		_s.Commission = _userCommission > 0 ? _userCommission : p.Commission;
+		_s.MinRangeTicks = _userMinRange > 0 ? _userMinRange : p.MinRange;
+		_s.MaxRangeTicks = _userMaxRange > 0 ? _userMaxRange : p.MaxRange;
+		_s.MaxDailyLoss = _userDailyLoss > 0 ? _userDailyLoss : p.DailyLoss;
+		_chartLabel = $"{symbol} · {minutes:0}m · {p.Name} profile";
 	}
 
 	private static TimeZoneInfo FindEastern()

@@ -20,6 +20,35 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
 
+## Max risk per trade (2026-10-24)
+
+New engine setting `MaxRiskPerTrade` ($ for the whole position at the stop, 0 = off, default off):
+a breakout whose stop would lose more is skipped and the day stays armed. With it off, results are
+unchanged (ES 509 trades, PF 1.30). Immediate entry, validated settings otherwise:
+
+| 1 ES (8–80t, $500 cap) | Trades | PF | Net | Max DD | Train / test PF | t |
+|---|---|---|---|---|---|---|
+| Off | 509 | 1.30 | +$57,314 | $10,974 | 1.29 / 1.33 | 2.6 |
+| $1,500 | 484 | 1.29 | +$50,914 | $10,432 | 1.32 / 1.20 | 2.6 |
+| $1,250 | 461 | 1.31 | +$49,831 | $8,762 | 1.37 / 1.16 | 2.7 |
+| $1,000 | 381 | 1.24 | +$29,964 | $10,227 | 1.34 / **0.89** | 2.0 |
+| $750 | 249 | 1.27 | +$18,217 | $6,418 | 1.23 / 1.52 | 1.8 |
+| $500 | 81 | 0.87 | −$2,462 | $4,550 | 0.93 / 0.30 | −0.6 |
+
+| 1 MNQ (32–600t, $150 cap) | Trades | PF | Net | Max DD | Train / test PF | t |
+|---|---|---|---|---|---|---|
+| Off | 585 | 1.30 | +$15,544 | $2,088 | 1.29 / 1.32 | 2.7 |
+| $400 | 565 | 1.23 | +$11,645 | $2,633 | 1.25 / 1.19 | 2.2 |
+| $300 | 478 | 1.25 | +$9,656 | $2,992 | 1.30 / 1.08 | 2.2 |
+| **$250** | **386** | **1.40** | +$10,381 | **$1,623** | 1.43 / 1.24 | 3.0 |
+| $200 | 281 | 1.44 | +$7,300 | $690 | 1.41 / 1.67 (27 test trades) | 2.8 |
+
+**Reading.** On ES the limit mostly removes trades; $1,250 is neutral, tighter hurts. On MNQ a
+$200–250 limit keeps or raises PF and cuts the worst drawdown, but NQ ranges keep growing, so a
+dollar limit rules out more days each year (test-period trades fall from 130 to 50 at $250). It
+was tuned on these results, so treat it as an account-fit tool, not proven extra edge. Default
+stays off.
+
 ## NQ test
 
 **Data.** `NQ-67287.csv`: NQ continuous 15m, 2023-12-17 .. 2026-10-23, 709 RTH days, the same

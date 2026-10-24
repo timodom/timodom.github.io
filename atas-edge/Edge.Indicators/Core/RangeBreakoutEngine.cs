@@ -33,6 +33,7 @@ public sealed class RangeBreakoutSettings
 	public decimal BreakevenAtR;
 	public decimal ProtectAtPct = 80m;
 	public int ProtectPullbackTicks = 6;
+	public decimal MaxRiskPerTrade; // $ for the whole position at the stop; 0 = off
 	public int MaxTrades = 2;
 	public int MaxLosers = 2;
 	public decimal MaxDailyLoss = 500m;
@@ -76,6 +77,11 @@ public sealed class RangeBreakoutEngine
 
 	/// <summary>Position closed: (bar, exit price, P&amp;L in $, reason).</summary>
 	public event Action<int, decimal, decimal, string> Exited;
+
+	/// <summary>Breakout passed on because its stop was over the per-trade risk limit: bar, direction, $ risk.</summary>
+	public event Action<int, int, decimal> Skipped;
+
+	public string LastSkip { get; private set; }
 
 	#endregion
 
@@ -223,6 +229,18 @@ public sealed class RangeBreakoutEngine
 		if (dir == 0 || !PassesFilters(k, dir))
 			return;
 
+		// Skip a breakout whose stop would lose more than the per-trade limit. The day stays armed,
+		// so a later fresh breakout can still qualify.
+		var entry = _s.Entry == RangeEntry.Immediate ? k.Close : dir > 0 ? High + _s.RetestOffsetTicks * TickSize : Low - _s.RetestOffsetTicks * TickSize;
+		var risk = Math.Abs(entry - StopFor(entry, dir)) / TickSize * _s.TickValue * _s.Contracts;
+
+		if (_s.MaxRiskPerTrade > 0 && risk > _s.MaxRiskPerTrade)
+		{
+			LastSkip = $"Risk ${risk:N0} over ${_s.MaxRiskPerTrade:N0} limit";
+			Skipped?.Invoke(k.Index, dir, risk);
+			return;
+		}
+
 		if (_s.Entry == RangeEntry.Immediate)
 		{
 			Open(k.Index, dir, k.Close);
@@ -276,6 +294,19 @@ public sealed class RangeBreakoutEngine
 			Close(k.Index, StopPrice, "Stop");
 	}
 
+	private decimal StopFor(decimal price, int dir)
+	{
+		var stop = _s.Stop switch
+		{
+			RangeStop.Midpoint => (High + Low) / 2m,
+			RangeStop.FixedTicks => price - dir * _s.StopTicks * TickSize,
+			_ => dir > 0 ? Low - TickSize : High + TickSize
+		};
+
+		// Midpoint stop can sit on the wrong side of a fill; fall back to the fixed stop.
+		return stop == price || Math.Sign(price - stop) != dir ? price - dir * _s.StopTicks * TickSize : stop;
+	}
+
 	private void Open(int bar, int dir, decimal price)
 	{
 		Direction = dir;
@@ -284,16 +315,7 @@ public sealed class RangeBreakoutEngine
 		_protectOn = false;
 		_best = price;
 
-		StopPrice = _s.Stop switch
-		{
-			RangeStop.Midpoint => (High + Low) / 2m,
-			RangeStop.FixedTicks => price - dir * _s.StopTicks * TickSize,
-			_ => dir > 0 ? Low - TickSize : High + TickSize
-		};
-
-		// Midpoint stop can sit on the wrong side of a fill; fall back to the fixed stop.
-		if (Risk <= 0 || Math.Sign(price - StopPrice) != dir)
-			StopPrice = price - dir * _s.StopTicks * TickSize;
+		StopPrice = StopFor(price, dir);
 
 		TargetPrice = _s.Target switch
 		{
