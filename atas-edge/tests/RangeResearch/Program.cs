@@ -84,7 +84,12 @@ void Row(string name, List<Trade> t)
 		var pf = losses == 0 ? 99 : wins / losses;
 		return $"{x.Count,7} {100m * x.Count(y => y.Pnl > 0) / x.Count,6:0}% {pf,7:0.00} {x.Sum(y => y.Pnl),10:N0} {dd,8:N0}";
 	}
-	Console.WriteLine($"{name,-40}|{Stats(t)} |{Stats(t.Where(y => y.Day < splitDay).ToList())} |{Stats(t.Where(y => y.Day >= splitDay).ToList())}");
+	// t-stat of mean P&L per trade vs zero: above ~2 is unlikely to be luck (rough, assumes independent trades).
+	var n = t.Count;
+	var mean = n > 0 ? (double)t.Average(y => y.Pnl) : 0;
+	var sd = n > 1 ? Math.Sqrt(t.Sum(y => Math.Pow((double)y.Pnl - mean, 2)) / (n - 1)) : 0;
+	var tstat = sd > 0 ? mean / (sd / Math.Sqrt(n)) : 0;
+	Console.WriteLine($"{name,-40}|{Stats(t)} |{Stats(t.Where(y => y.Day < splitDay).ToList())} |{Stats(t.Where(y => y.Day >= splitDay).ToList())} | t={tstat:0.0}");
 }
 
 void Header(string title)
