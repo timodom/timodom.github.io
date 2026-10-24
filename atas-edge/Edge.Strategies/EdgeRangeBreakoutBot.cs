@@ -681,8 +681,13 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private static int Center(IChartContainer c, int bar) => (Left(c, bar) + Left(c, bar + 1)) / 2;
 
-	private void Label(RenderContext ctx, string text, Color color, int x, int y) =>
-		ctx.DrawString(text, _labelFont, color, x, y - ctx.MeasureString(text, _labelFont).Height / 2);
+	private void Label(RenderContext ctx, string text, Color color, int x, int y)
+	{
+		var size = ctx.MeasureString(text, _labelFont);
+		var rect = new Rectangle(x + 2, y - size.Height / 2 - 1, size.Width + 4, size.Height + 2);
+		ctx.FillRectangle(ChartBg, rect);
+		ctx.DrawString(text, _labelFont, color, rect.X + 2, rect.Y + 1);
+	}
 
 	// Pill: tinted fill, thin border, text centred on x. 'above' grows the pill upward from y.
 	private void Tag(RenderContext ctx, string text, Color color, int x, int y, bool above)
