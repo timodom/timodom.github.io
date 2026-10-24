@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Threading.Tasks;
 
 using ATAS.DataFeedsCore;
@@ -53,10 +54,12 @@ public class EdgeRangeBreakoutBot : Indicator
 	private bool _realtime;
 	private int _lastCalcBar = -1;
 	private bool _killedForDay;
-	private decimal _lastPosition;
-	private Order _entryOrder;
-	private Order _stopOrder;
-	private Order _targetOrder;
+	private const string OrderTag = "Edge ORB";
+	private readonly List<Order> _sent = new();
+	private string _tradeId = "-";
+	private decimal _entryPrice;
+	private bool _hadPosition, _bracketSent, _flattenRequested;
+	private DateTime _flattenAt, _flattenRetryAt;
 	private string _lastBarEt = "-";
 	private string _lastEvent = "-";
 	private int _pendingDir;
@@ -258,7 +261,8 @@ public class EdgeRangeBreakoutBot : Indicator
 			TrackDay(bar - 1, et);
 		}
 
-		if (IsLive && bar == CurrentBar - 1)
+		// Runs even after the loss cap pauses new entries, so an exit in progress can finish.
+		if (_liveTrading && _realtime && bar == CurrentBar - 1)
 			ManageLive(bar);
 	}
 
@@ -271,14 +275,19 @@ public class EdgeRangeBreakoutBot : Indicator
 		_pendingDir = dir;
 		_lastEvent = $"Retest {(dir > 0 ? "buy" : "sell")} limit {price}";
 
-		if (IsLive)
-			_entryOrder = Send(dir > 0 ? OrderDirections.Buy : OrderDirections.Sell, OrderTypes.Limit, price, Contracts, "Edge ORB entry");
+		if (IsLive && StartTrade())
+		{
+			_entryPrice = price;
+			Send(dir > 0 ? OrderDirections.Buy : OrderDirections.Sell, OrderTypes.Limit, price, Contracts, "entry");
+		}
 	}
 
+	// A fill that lands after this cancel shows up as a position the engine isn't trading,
+	// and ManageLive flattens it.
 	private void OnPendingCancelled(int bar)
 	{
 		_lastEvent = "Retest expired";
-		Cancel(ref _entryOrder);
+		CancelAll("entry");
 	}
 
 	private void OnEntered(int bar, int dir, decimal price, decimal stop, decimal target)
@@ -291,15 +300,18 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		// Immediate entries are decided on the bar close; send them now. Retest fills already
 		// happened at the broker (that's what told the engine), so nothing to send.
-		if (IsLive && _s.Entry == RangeEntry.Immediate && Math.Sign(CurrentPosition) != dir)
-			Send(dir > 0 ? OrderDirections.Buy : OrderDirections.Sell, OrderTypes.Market, 0, Contracts, "Edge ORB entry");
+		if (IsLive && _s.Entry == RangeEntry.Immediate && StartTrade())
+		{
+			_entryPrice = price;
+			Send(dir > 0 ? OrderDirections.Buy : OrderDirections.Sell, OrderTypes.Market, 0, Contracts, "entry");
+		}
 	}
 
 	private void OnStopMoved(int bar, decimal stop)
 	{
 		_lastEvent = $"Stop moved to {stop}";
 
-		if (IsLive && CurrentPosition != 0)
+		if (_liveTrading && _realtime && NetPosition() != 0)
 			MoveBrokerStop(stop);
 	}
 
@@ -316,79 +328,223 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		_lastEvent = $"{reason}: {pnl:N0}";
 
-		// The engine closed on a bar close (hard close, or a stop/target it saw first): make
-		// the broker match. If the broker already exited, the position is flat and this no-ops.
-		if (IsLive)
-			Flatten();
+		// No orders from here: if the engine closed on a bar close while the bot still holds a
+		// position, ManageLive sees "position but not in trade" and runs one guarded flatten.
 	}
 
 	#endregion
 
 	#region Live execution
 
+	// Live state comes from the bot's OWN orders, found by their "#trade" comment, never from
+	// the account position: that lags every order by a moment and includes other bots and
+	// manual trades on the same account. (Reading it caused a flatten loop that built a
+	// 279,000-lot replay position.) ATAS also replaces a stop on every modify, so orders are
+	// looked up by comment rather than by the object the bot created.
 	private void ManageLive(int bar)
 	{
-		var position = CurrentPosition;
 		var price = GetCandle(bar).Close;
+		var pos = NetPosition();
 
-		// Real loss cap on the account, not just the engine's estimate.
-		if (MaxDailyLoss > 0 && Portfolio is not null && Portfolio.ClosedPnL + Portfolio.OpenPnL <= -MaxDailyLoss)
+		// Retest limit filled at the broker.
+		if (pos != 0 && _engine.State == RangeDayState.Pending)
+			_engine.SyncExternalFill(bar, _entryPrice);
+
+		if (pos != 0)
+			_hadPosition = true;
+
+		// Flat again after being in: a stop, target or flatten filled. Clean up and tell the engine.
+		if (pos == 0 && _hadPosition)
 		{
-			Flatten();
-			_killedForDay = true;
-			_lastEvent = "Daily loss cap hit - live trading paused";
+			_hadPosition = false;
+			_flattenRequested = false;
+			CancelAll("stop", "target", "entry");
+
+			if (_engine.State == RangeDayState.InTrade)
+			{
+				var stopHit = FilledOf("stop") > 0;
+				_engine.SyncExternalExit(bar, stopHit ? _brokerStop : FilledOf("target") > 0 ? _engine.TargetPrice : price, stopHit ? "Stop" : "Target");
+			}
+
 			return;
 		}
 
-		// Retest limit filled at the broker.
-		if (position != 0 && _engine.State == RangeDayState.Pending)
+		if (pos == 0)
+			return;
+
+		// Real loss cap on the account, not just the engine's estimate.
+		if (!_killedForDay && MaxDailyLoss > 0 && Portfolio is not null && Portfolio.ClosedPnL + Portfolio.OpenPnL <= -MaxDailyLoss)
 		{
-			_entryOrder = null;
-			_engine.SyncExternalFill(bar, AveragePrice);
+			_killedForDay = true;
+			RequestFlatten(bar, price, "Daily loss cap");
 		}
 
-		// Exits rest at the broker so the trade is protected even if ATAS goes down.
-		if (position != 0 && _engine.State == RangeDayState.InTrade && _stopOrder is null)
+		if (ToEt(GetCandle(bar).Time).TimeOfDay >= _s.HardClose)
+			RequestFlatten(bar, price, "Hard close");
+
+		// A position the engine isn't trading (it exited on a bar close, or a late or stray fill).
+		if (_engine.State != RangeDayState.InTrade)
+			RequestFlatten(bar, price, "Exit");
+
+		if (_flattenRequested)
 		{
-			var exitSide = position > 0 ? OrderDirections.Sell : OrderDirections.Buy;
-			var qty = Math.Abs(position);
-			_stopOrder = Send(exitSide, OrderTypes.Stop, _engine.StopPrice, qty, "Edge ORB stop");
-			_targetOrder = Send(exitSide, OrderTypes.Limit, _engine.TargetPrice, qty, "Edge ORB target");
+			ProgressFlatten(pos);
+			return;
+		}
+
+		// Exits rest at the broker so the trade is protected even if ATAS goes down. Once per trade.
+		if (!_bracketSent)
+		{
+			var exitSide = pos > 0 ? OrderDirections.Sell : OrderDirections.Buy;
+			Send(exitSide, OrderTypes.Stop, _engine.StopPrice, Math.Abs(pos), "stop");
+			Send(exitSide, OrderTypes.Limit, _engine.TargetPrice, Math.Abs(pos), "target");
+			_bracketSent = true;
 			_brokerStop = _engine.StopPrice;
 			_liveBest = _engine.EntryPrice;
 			_liveProtectOn = false;
 		}
 
 		// Protect on every tick: a flush is a price event, not a bar-close event.
-		if (position != 0 && _engine.State == RangeDayState.InTrade && _stopOrder is not null && _s.ProtectAtPct > 0)
-			ProtectLive(Math.Sign(position), price);
+		if (_s.ProtectAtPct > 0)
+			ProtectLive(Math.Sign(pos), price);
+	}
 
-		// Broker stop or target filled: cancel the other side, tell the engine.
-		if (position == 0 && _lastPosition != 0)
+	private void RequestFlatten(int bar, decimal price, string reason)
+	{
+		CancelAll("entry");
+
+		if (_flattenRequested)
+			return;
+
+		_flattenRequested = true;
+		_flattenAt = DateTime.UtcNow;
+		_lastEvent = $"{reason}: flattening";
+		CancelAll("stop", "target");
+
+		// Engine first, so nothing re-arms a bracket for a trade that is being closed.
+		_engine.SyncExternalExit(bar, price, reason);
+	}
+
+	// One market exit at a time, sized to the bot's own position, only once the stop and target
+	// are confirmed gone (else one could fill too and flip the position), and only if the
+	// account really holds at least that much on the same side.
+	private void ProgressFlatten(decimal pos)
+	{
+		if (AnyWorking("stop", "target", "flatten") || DateTime.UtcNow < _flattenRetryAt)
+			return;
+
+		var account = CurrentPosition;
+
+		if (Math.Sign(account) != Math.Sign(pos) || Math.Abs(account) < Math.Abs(pos))
 		{
-			Cancel(ref _stopOrder);
-			Cancel(ref _targetOrder);
-			_engine.SyncExternalExit(bar, price, "Broker exit");
+			_lastEvent = $"Flatten waiting: account {account:N0} vs bot {pos:N0}";
+			return;
 		}
 
-		// Hard close mid-bar instead of waiting for the bar to finish.
-		if (position != 0 && ToEt(GetCandle(bar).Time).TimeOfDay >= _s.HardClose)
-			Flatten();
-
-		_lastPosition = position;
+		Send(pos > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Market, 0, Math.Abs(pos), "flatten");
+		_flattenAt = DateTime.UtcNow; // an unregistered flatten counts as working for 5s from here
+		_flattenRetryAt = DateTime.UtcNow.AddSeconds(2);
 	}
 
-	private void Flatten()
+	// Net contracts across every order of the current trade: buys filled minus sells filled.
+	private decimal NetPosition()
 	{
-		Cancel(ref _entryOrder);
-		Cancel(ref _stopOrder);
-		Cancel(ref _targetOrder);
+		decimal net = 0;
 
-		var position = CurrentPosition;
+		foreach (var o in TradeOrders(null))
+			net += (o.Direction == OrderDirections.Buy ? 1 : -1) * Filled(o);
 
-		if (position != 0)
-			Send(position > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Market, 0, Math.Abs(position), "Edge ORB flatten");
+		return net;
 	}
+
+	private decimal FilledOf(string role)
+	{
+		decimal sum = 0;
+
+		foreach (var o in TradeOrders(role))
+			sum += Filled(o);
+
+		return sum;
+	}
+
+	// Active, or just sent and not registered yet (give registration a few seconds).
+	private bool AnyWorking(params string[] roles)
+	{
+		foreach (var role in roles)
+		{
+			foreach (var o in TradeOrders(role))
+			{
+				if (o.State == OrderStates.Active || o.State == OrderStates.None && DateTime.UtcNow < _flattenAt.AddSeconds(5))
+					return true;
+			}
+		}
+
+		return false;
+	}
+
+	private void CancelAll(params string[] roles)
+	{
+		foreach (var role in roles)
+		{
+			foreach (var o in TradeOrders(role))
+				Cancel(o);
+		}
+	}
+
+	private Order ActiveOf(string role)
+	{
+		foreach (var o in TradeOrders(role))
+		{
+			if (o.State == OrderStates.Active)
+				return o;
+		}
+
+		return null;
+	}
+
+	// This trade's orders (optionally one role): the ones the bot sent plus anything ATAS lists
+	// under the same comment, e.g. the replacement created by a stop modify. Deduped by Id.
+	private List<Order> TradeOrders(string role)
+	{
+		var result = new List<Order>();
+		var ids = new HashSet<string>();
+		var prefix = $"{OrderTag} ";
+		var suffix = $" #{_tradeId}";
+
+		bool Mine(Order o) =>
+			o?.Comment is { } c && c.StartsWith(prefix) && c.EndsWith(suffix) && (role is null || c == $"{OrderTag} {role}{suffix}");
+
+		void Add(Order o)
+		{
+			if (!Mine(o) || result.Contains(o) || !string.IsNullOrEmpty(o.Id) && !ids.Add(o.Id))
+				return;
+
+			result.Add(o);
+		}
+
+		foreach (var o in _sent)
+			Add(o);
+
+		try
+		{
+			if (TradingManager?.Orders is { } all)
+			{
+				foreach (var o in all.ToList())
+					Add(o);
+			}
+		}
+		catch (InvalidOperationException)
+		{
+			// The list changed while we read it; the next tick reads it again.
+		}
+
+		return result;
+	}
+
+	// Filled quantity. An order not yet registered reports Unfilled 0, so only trust it once
+	// the broker has it (Active or Done).
+	private static decimal Filled(Order o) =>
+		o is not null && o.State is OrderStates.Active or OrderStates.Done ? o.QuantityToFill - o.Unfilled : 0;
 
 	private void ProtectLive(int dir, decimal last)
 	{
@@ -408,11 +564,11 @@ public class EdgeRangeBreakoutBot : Indicator
 	private void MoveBrokerStop(decimal price)
 	{
 		var tm = TradingManager;
-		var old = _stopOrder;
+		var old = ActiveOf("stop");
 		var tick = InstrumentInfo.TickSize;
-		var dir = Math.Sign(CurrentPosition);
+		var dir = Math.Sign(NetPosition());
 
-		if (tm is null || old is null || dir == 0 || tick <= 0 || _modifyBusy)
+		if (tm is null || old is null || dir == 0 || tick <= 0 || _modifyBusy || _flattenRequested)
 			return;
 
 		price = Math.Round(price / tick) * tick;
@@ -445,12 +601,28 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private decimal CurrentPosition => TradingManager?.Position?.Volume ?? 0m;
 
-	private decimal AveragePrice => TradingManager?.Position?.AveragePrice ?? 0m;
-
 	private Portfolio Portfolio => TradingManager?.Portfolio;
 
-	private Order Send(OrderDirections side, OrderTypes type, decimal price, decimal qty, string comment)
+	// A new trade number, but only when nothing from the last trade is open or working.
+	private bool StartTrade()
 	{
+		if (NetPosition() != 0 || AnyWorking("entry", "stop", "target", "flatten"))
+		{
+			_lastEvent = "Previous trade still open - entry skipped";
+			return false;
+		}
+
+		_tradeId = DateTime.Now.ToString("MMddHHmmss");
+		_sent.Clear();
+		_hadPosition = _bracketSent = _flattenRequested = false;
+		_flattenRetryAt = default;
+		return true;
+	}
+
+	private Order Send(OrderDirections side, OrderTypes type, decimal price, decimal qty, string role)
+	{
+		var comment = $"{OrderTag} {role} #{_tradeId}";
+
 		var tm = TradingManager;
 		var security = tm?.Security;
 
@@ -476,6 +648,8 @@ public class EdgeRangeBreakoutBot : Indicator
 		else if (type == OrderTypes.Stop)
 			order.TriggerPrice = order.Price = price;
 
+		_sent.Add(order);
+
 		// Never block the calculate thread on the broker call; it can deadlock ATAS.
 		Task.Run(async () =>
 		{
@@ -486,27 +660,33 @@ public class EdgeRangeBreakoutBot : Indicator
 		return order;
 	}
 
-	private void Cancel(ref Order order)
+	private void Cancel(Order o)
 	{
 		var tm = TradingManager;
-		var o = order;
 
-		if (o is not null && o.State == OrderStates.Active && tm is not null)
+		if (o is null || o.State != OrderStates.Active || tm is null)
+			return;
+
+		Task.Run(async () =>
 		{
-			Task.Run(async () =>
-			{
-				try { await tm.CancelOrderAsync(o, false, false); }
-				catch (Exception ex) { _lastEvent = $"Cancel failed: {ex.Message}"; }
-			});
-		}
-
-		order = null;
+			try { await tm.CancelOrderAsync(o, false, false); }
+			catch (Exception ex) { _lastEvent = $"Cancel failed: {ex.Message}"; }
+		});
 	}
 
+	// Removed from the chart: no more ticks will arrive, so cancel and exit in one go. The
+	// account check still stops it from adding to or flipping a position.
 	protected override void OnDispose()
 	{
 		if (FlattenOnStop && _liveTrading)
-			Flatten();
+		{
+			CancelAll("entry", "stop", "target");
+			var pos = NetPosition();
+			var account = CurrentPosition;
+
+			if (pos != 0 && Math.Sign(account) == Math.Sign(pos) && Math.Abs(account) >= Math.Abs(pos))
+				Send(pos > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Market, 0, Math.Abs(pos), "flatten");
+		}
 
 		base.OnDispose();
 	}
@@ -754,7 +934,7 @@ public class EdgeRangeBreakoutBot : Indicator
 			AddTradeRows(e);
 
 		if (_liveTrading)
-			_rows.Add(new PanelRow("Position", CurrentPosition.ToString("N0"), Palette.Of(CurrentPosition)));
+			_rows.Add(new PanelRow("Position (bot)", NetPosition().ToString("N0"), Palette.Of(NetPosition())));
 
 		_rows.Add(new PanelRow("Last event", _lastEvent, Palette.Muted));
 		_rows.Add(new PanelRow("Day P&L (sim)", e.DayPnl.ToString("N0"), Palette.Of(e.DayPnl)));
