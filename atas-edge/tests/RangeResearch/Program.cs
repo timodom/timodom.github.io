@@ -17,7 +17,14 @@ var inv = CultureInfo.InvariantCulture;
 var path = args.Length > 0 ? args[0] : throw new ArgumentException("pass the CSV path");
 var chartIsUtc = !args.Contains("--chart-et");
 var eastern = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-const decimal Tick = 0.25m, TickValue = 12.5m, Commission = 4m;
+// Instrument settings (defaults = ES). NQ: --tick-value 5 --max-range 320 --max-loss 500 (for example).
+decimal Arg(string name, decimal def) { var i = Array.IndexOf(args, name); return i >= 0 ? decimal.Parse(args[i + 1], inv) : def; }
+const decimal Tick = 0.25m;
+var TickValue = Arg("--tick-value", 12.5m);
+var Commission = Arg("--commission", 4m);
+var MinRange = (int)Arg("--min-range", 8);
+var MaxRange = (int)Arg("--max-range", 80);
+var MaxLoss = Arg("--max-loss", 500m);
 
 var bars = new List<Bar>();
 foreach (var line in File.ReadLines(path).Skip(1))
@@ -64,7 +71,7 @@ decimal IbRatio(DateTime day, TimeSpan end)
 
 List<Trade> RunEngine(Action<RangeBreakoutSettings> tweak)
 {
-	var s = new RangeBreakoutSettings();
+	var s = new RangeBreakoutSettings { TickValue = TickValue, Commission = Commission, MinRangeTicks = MinRange, MaxRangeTicks = MaxRange, MaxDailyLoss = MaxLoss };
 	tweak?.Invoke(s);
 	var e = new RangeBreakoutEngine(s) { TickSize = Tick };
 	var trades = new List<Trade>();
@@ -124,6 +131,10 @@ if (outIdx >= 0)
 	File.WriteAllLines(args[outIdx + 1], lines);
 	Console.WriteLine($"Wrote {lines.Count - 1} trades to {args[outIdx + 1]}");
 }
+
+Header($"MAX RANGE SWEEP (immediate entry; min {MinRange}t, tick ${TickValue}, daily loss cap ${MaxLoss})");
+foreach (var mr in new[] { 40, 60, 80, 120, 160, 200, 240, 320, 400, 100000 })
+	Row($"Immediate, max range {(mr >= 100000 ? "none" : mr + "t")}", RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRangeTicks = mr; }));
 
 Header("BREAKOUT BY REGIME: ORB-15 trades bucketed by 15-min IB width / avg daily range (prior 14 days)");
 foreach (var (label, entry) in new[] { ("retest", RangeEntry.Retest), ("immediate", RangeEntry.Immediate) })
