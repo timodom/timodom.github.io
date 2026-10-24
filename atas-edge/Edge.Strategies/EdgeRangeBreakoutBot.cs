@@ -1,4 +1,8 @@
+#if MARKET
+namespace Edge.Atas.Market;
+#else
 namespace Edge.Atas;
+#endif
 
 using System;
 using System.Collections.Generic;
@@ -28,8 +32,14 @@ using OFT.Rendering.Tools;
 /// arrive, never from the historical load.
 /// Built on Indicator (not ChartStrategy) because current ATAS only lists Indicator types;
 /// orders go through the chart's TradingManager.
+/// The same file builds two editions: in-house (every setting) and MARKET (Edge.Market project):
+/// the validated setup locked, settings reduced, instrument detected, unsupported charts refused.
 /// </summary>
+#if MARKET
+[DisplayName("Edge Bot")]
+#else
 [DisplayName("Edge Range Breakout Bot")]
+#endif
 [Category("Edge")]
 public class EdgeRangeBreakoutBot : Indicator
 {
@@ -68,6 +78,11 @@ public class EdgeRangeBreakoutBot : Indicator
 	private bool _liveProtectOn;
 	private decimal _brokerStop;
 	private volatile bool _modifyBusy;
+#if MARKET
+	private decimal _userDailyLoss;
+#endif
+	private string _unsupported;
+	private string _chartLabel = "-";
 
 	#endregion
 
@@ -87,6 +102,7 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Display(Name = "Flatten when strategy stops", GroupName = "0. Mode", Order = 2)]
 	public bool FlattenOnStop { get; set; } = true;
 
+#if !MARKET
 	[Display(Name = "Range start (ET)", GroupName = "1. Session", Order = 10)]
 	public TimeSpan RangeStart { get => _s.RangeStart; set { _s.RangeStart = value; RecalculateValues(); } }
 
@@ -98,10 +114,12 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	[Display(Name = "Hard close (ET)", GroupName = "1. Session", Order = 40)]
 	public TimeSpan HardClose { get => _s.HardClose; set { _s.HardClose = value; RecalculateValues(); } }
+#endif
 
 	[Display(Name = "Chart bar times are UTC (check dashboard 'Bar time ET')", GroupName = "1. Session", Order = 50)]
 	public bool ChartTimeIsUtc { get => _chartTimeIsUtc; set { _chartTimeIsUtc = value; RecalculateValues(); } }
 
+#if !MARKET
 	[Display(Name = "Min range (ticks)", GroupName = "1. Session", Order = 60)]
 	[Range(0, 10000)]
 	public int MinRangeTicks { get => _s.MinRangeTicks; set { _s.MinRangeTicks = value; RecalculateValues(); } }
@@ -167,15 +185,23 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Display(Name = "Max losing trades per day", GroupName = "5. Risk", Order = 410)]
 	[Range(1, 50)]
 	public int MaxLosers { get => _s.MaxLosers; set { _s.MaxLosers = value; RecalculateValues(); } }
+#endif
 
+#if MARKET
+	[Display(Name = "Max daily loss ($, 0 = instrument default)", GroupName = "5. Risk", Order = 420)]
+	[Range(0, 1000000)]
+	public decimal MaxDailyLoss { get => _userDailyLoss; set { _userDailyLoss = value; RecalculateValues(); } }
+#else
 	[Display(Name = "Max daily loss ($, 0 = off)", GroupName = "5. Risk", Order = 420)]
 	[Range(0, 1000000)]
 	public decimal MaxDailyLoss { get => _s.MaxDailyLoss; set { _s.MaxDailyLoss = value; RecalculateValues(); } }
+#endif
 
 	[Display(Name = "Contracts", GroupName = "5. Risk", Order = 430)]
 	[Range(1, 1000)]
 	public int Contracts { get => _s.Contracts; set { _s.Contracts = value; RecalculateValues(); } }
 
+#if !MARKET
 	[Display(Name = "Tick value ($)  ES 12.50, MES 1.25", GroupName = "5. Risk", Order = 440)]
 	[Range(0.01, 10000)]
 	public decimal TickValue { get => _s.TickValue; set { _s.TickValue = value; RecalculateValues(); } }
@@ -183,6 +209,7 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Display(Name = "Commission per contract round trip ($)", GroupName = "5. Risk", Order = 450)]
 	[Range(0, 1000)]
 	public decimal Commission { get => _s.Commission; set { _s.Commission = value; RecalculateValues(); } }
+#endif
 
 	[Display(Name = "Show dashboard", GroupName = "6. Dashboard", Order = 500)]
 	public bool ShowDashboard { get; set; } = true;
@@ -229,6 +256,10 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		((ValueDataSeries)DataSeries[0]).VisualType = VisualMode.Hide;
 
+#if MARKET
+		// The validated setup (ES, ~3 years): everything at its default except immediate entry.
+		_s.Entry = RangeEntry.Immediate;
+#endif
 		_engine = new RangeBreakoutEngine(_s);
 		_engine.PendingPlaced += OnPendingPlaced;
 		_engine.PendingCancelled += OnPendingCancelled;
@@ -246,7 +277,11 @@ public class EdgeRangeBreakoutBot : Indicator
 			_realtime = false;
 			_boxes.Clear();
 			_trades.Clear();
+			CheckChart();
 		}
+
+		if (_unsupported != null)
+			return;
 
 		// History is calculated once per bar; a repeat call for the same bar means ticks are
 		// streaming (live or Market Replay). Only from then on may anything reach the broker.
@@ -770,7 +805,7 @@ public class EdgeRangeBreakoutBot : Indicator
 			ctx.FillRectangle(Draw(BoxColor, BoxOpacity), box);
 			ctx.DrawRectangle(new RenderPen(Color.FromArgb(255, 120, 120, 120), 1), box);
 
-			var caption = $"{RangeStart:hh\\:mm}-{RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped - outside risk parameters" : "")}";
+			var caption = $"{_s.RangeStart:hh\\:mm}-{_s.RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped - outside risk parameters" : "")}";
 			var capSize = ctx.MeasureString(caption, _labelFont);
 			var capRect = new Rectangle(x1, yHi - capSize.Height - 4, capSize.Width + 6, capSize.Height + 2);
 			ctx.FillRectangle(ChartBg, capRect);
@@ -895,10 +930,60 @@ public class EdgeRangeBreakoutBot : Indicator
 	// Signed dollars: +$1,234 / -$917 / $0.
 	private static string Money(decimal v) => v.ToString("+$#,0;-$#,0;$0");
 
+#if MARKET
+	private const string Title = "Edge Bot";
+#else
+	private const string Title = "Edge Range Breakout Bot";
+#endif
+
 	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);
 
 	private DateTime ToEt(DateTime time) =>
 		_chartTimeIsUtc ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(time, DateTimeKind.Utc), Eastern) : time;
+
+	// Runs at bar 0 of every calculation. In-house: notes the chart, never refuses it. Market:
+	// supported instruments and timeframes only, with the instrument's tick value, commission and
+	// default daily loss applied, so it works out of the box. NQ/MNQ join once validated.
+	private void CheckChart()
+	{
+		var symbol = (InstrumentInfo?.Instrument ?? "").TrimStart('#').ToUpperInvariant();
+		var minutes = 0d;
+
+		for (var i = 1; i < Math.Min(CurrentBar, 300); i++)
+		{
+			var gap = (GetCandle(i).Time - GetCandle(i - 1).Time).TotalMinutes;
+
+			if (gap > 0 && (minutes == 0 || gap < minutes))
+				minutes = gap;
+		}
+
+		_chartLabel = $"{symbol} · {minutes:0}m";
+		_unsupported = null;
+
+#if MARKET
+		decimal tickValue, commission, dailyLoss;
+
+		if (symbol.StartsWith("MES"))
+			(tickValue, commission, dailyLoss) = (1.25m, 1m, 50m);
+		else if (symbol.StartsWith("ES"))
+			(tickValue, commission, dailyLoss) = (12.5m, 4m, 500m);
+		else
+		{
+			_unsupported = $"Unsupported instrument {symbol}. Use ES or MES.";
+			return;
+		}
+
+		if (minutes is not (5 or 15))
+		{
+			_unsupported = $"Unsupported timeframe ({minutes:0}m). Use a 5- or 15-minute chart.";
+			return;
+		}
+
+		_s.TickValue = tickValue;
+		_s.Commission = commission;
+		_s.MaxDailyLoss = _userDailyLoss > 0 ? _userDailyLoss : dailyLoss;
+#endif
+	}
 
 	private static TimeZoneInfo FindEastern()
 	{
@@ -931,6 +1016,15 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		_rows.Clear();
 		_rows.Add(new PanelRow("Mode", mode, _liveTrading ? Palette.Down : Palette.Muted));
+		_rows.Add(new PanelRow("Chart", _chartLabel, Palette.Muted));
+
+		if (_unsupported != null)
+		{
+			_rows.Add(new PanelRow("Not running", _unsupported, Palette.Down));
+			_dashboard.Render(context, Container.Region, Title, _rows);
+			return;
+		}
+
 		_rows.Add(new PanelRow("Bar time ET", _lastBarEt, Palette.Muted));
 		_rows.Add(new PanelRow("Today", e.State.ToString(), e.State == RangeDayState.InTrade ? Palette.Of(e.Direction) : Palette.Muted));
 
@@ -955,7 +1049,7 @@ public class EdgeRangeBreakoutBot : Indicator
 		_rows.Add(new PanelRow("Avg trade", e.Trades == 0 ? "-" : Money(e.Net / e.Trades), Palette.Of(e.Net)));
 		_rows.Add(new PanelRow("Max drawdown", $"{e.MaxDrawdown:$#,0}", e.MaxDrawdown > 0 ? Palette.Down : Palette.Muted));
 
-		_dashboard.Render(context, Container.Region, "Edge Range Breakout Bot", _rows);
+		_dashboard.Render(context, Container.Region, Title, _rows);
 	}
 
 	private void AddTradeRows(RangeBreakoutEngine e)
