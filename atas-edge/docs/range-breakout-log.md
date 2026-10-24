@@ -3,7 +3,7 @@
 Running record of what was built, what's verified, what went wrong and what's still open.
 Rules live in `range-breakout-spec.md`; this file tracks the work.
 
-**Locked version:** tag `range-bot-v0.2` on branch `atas-edge-suite`.
+**Locked version:** tag `range-bot-v0.3` on branch `atas-edge-suite` (2026-10-24). Validated setup: all defaults with **Entry = Immediate** (ES 15m, 709 sessions: 509 trades, PF 1.30, +$57,314, t 2.6; confirmed on the ATAS dashboard). Note: the code default for Entry is still Retest; set Immediate in the bot's settings. Earlier lock: `range-bot-v0.2`.
 
 ## Status (2026-10-24)
 
