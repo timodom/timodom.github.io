@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Threading.Tasks;
 
 using ATAS.DataFeedsCore;
@@ -16,6 +17,7 @@ using Edge.Atas.Core;
 using OFT.Rendering;
 using OFT.Rendering.Context;
 using OFT.Rendering.Control;
+using OFT.Rendering.Tools;
 
 /// <summary>
 /// Opening range / initial balance breakout bot (default ORB-15 on ES 5m).
@@ -40,14 +42,11 @@ public class EdgeRangeBreakoutBot : Indicator
 	private readonly DragPanel _dashboard = new();
 	private readonly List<PanelRow> _rows = new(14);
 
-	private readonly ValueDataSeries _rangeHi = new("RangeHi", "Range high") { VisualType = VisualMode.Square, Color = Color.FromArgb(220, 70, 160, 255).Convert(), ShowZeroValue = false, Width = 2 };
-	private readonly ValueDataSeries _rangeLo = new("RangeLo", "Range low") { VisualType = VisualMode.Square, Color = Color.FromArgb(220, 70, 160, 255).Convert(), ShowZeroValue = false, Width = 2 };
-	private readonly ValueDataSeries _stopLine = new("StopLine", "Stop") { VisualType = VisualMode.Square, Color = Color.FromArgb(200, 255, 80, 80).Convert(), ShowZeroValue = false, Width = 1 };
-	private readonly ValueDataSeries _targetLine = new("TargetLine", "Target") { VisualType = VisualMode.Square, Color = Color.FromArgb(200, 0, 220, 130).Convert(), ShowZeroValue = false, Width = 1 };
-	private readonly ValueDataSeries _longEntry = new("LongEntry", "Long entry") { VisualType = VisualMode.UpArrow, Color = Color.FromArgb(255, 0, 220, 130).Convert(), ShowZeroValue = false, Width = 3 };
-	private readonly ValueDataSeries _shortEntry = new("ShortEntry", "Short entry") { VisualType = VisualMode.DownArrow, Color = Color.FromArgb(255, 255, 70, 70).Convert(), ShowZeroValue = false, Width = 3 };
-	private readonly ValueDataSeries _winExit = new("WinExit", "Winning exit") { VisualType = VisualMode.Dots, Color = Color.FromArgb(255, 0, 255, 140).Convert(), ShowZeroValue = false, Width = 6 };
-	private readonly ValueDataSeries _lossExit = new("LossExit", "Losing exit") { VisualType = VisualMode.Dots, Color = Color.FromArgb(255, 255, 60, 60).Convert(), ShowZeroValue = false, Width = 6 };
+	// Chart drawing is custom-rendered (range box, IB lines, trade tags); these hold what to draw.
+	private readonly List<DayBox> _boxes = new();
+	private readonly List<TradeMark> _trades = new();
+	private readonly RenderFont _tagFont = new("Arial", 9, FontStyle.Bold);
+	private readonly RenderFont _labelFont = new("Arial", 9);
 
 	private bool _liveTrading;
 	private bool _chartTimeIsUtc = true;
@@ -185,6 +184,28 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Display(Name = "Show dashboard", GroupName = "6. Dashboard", Order = 500)]
 	public bool ShowDashboard { get; set; } = true;
 
+	[Display(Name = "Range box color", GroupName = "7. Chart", Order = 600)]
+	public CrossColor BoxColor { get; set; } = CrossColor.FromRgb(158, 158, 158);
+
+	[Display(Name = "Range box opacity (0-255)", GroupName = "7. Chart", Order = 610)]
+	[Range(0, 255)]
+	public int BoxOpacity { get; set; } = 60;
+
+	[Display(Name = "IBH color", GroupName = "7. Chart", Order = 620)]
+	public CrossColor HighColor { get; set; } = CrossColor.FromRgb(47, 143, 224);
+
+	[Display(Name = "IBM color", GroupName = "7. Chart", Order = 630)]
+	public CrossColor MidColor { get; set; } = CrossColor.FromRgb(26, 165, 143);
+
+	[Display(Name = "IBL color", GroupName = "7. Chart", Order = 640)]
+	public CrossColor LowColor { get; set; } = CrossColor.FromRgb(226, 71, 90);
+
+	[Display(Name = "Stop / short color", GroupName = "7. Chart", Order = 650)]
+	public CrossColor StopColor { get; set; } = CrossColor.FromRgb(226, 71, 90);
+
+	[Display(Name = "Target / long color", GroupName = "7. Chart", Order = 660)]
+	public CrossColor TargetColor { get; set; } = CrossColor.FromRgb(60, 207, 142);
+
 	[Browsable(false)]
 	public int DashboardX { get => _dashboard.OffsetX; set => _dashboard.OffsetX = value; }
 
@@ -199,14 +220,7 @@ public class EdgeRangeBreakoutBot : Indicator
 		EnableCustomDrawing = true;
 		SubscribeToDrawingEvents(DrawingLayouts.Final);
 
-		DataSeries[0] = _rangeHi;
-		DataSeries.Add(_rangeLo);
-		DataSeries.Add(_stopLine);
-		DataSeries.Add(_targetLine);
-		DataSeries.Add(_longEntry);
-		DataSeries.Add(_shortEntry);
-		DataSeries.Add(_winExit);
-		DataSeries.Add(_lossExit);
+		((ValueDataSeries)DataSeries[0]).VisualType = VisualMode.Hide;
 
 		_engine = new RangeBreakoutEngine(_s);
 		_engine.PendingPlaced += OnPendingPlaced;
@@ -223,6 +237,8 @@ public class EdgeRangeBreakoutBot : Indicator
 			_engine.Reset();
 			_gate.Reset();
 			_realtime = false;
+			_boxes.Clear();
+			_trades.Clear();
 		}
 
 		// History is calculated once per bar; a repeat call for the same bar means ticks are
@@ -239,11 +255,8 @@ public class EdgeRangeBreakoutBot : Indicator
 			var et = ToEt(k.Time);
 			_lastBarEt = et.ToString("ddd HH:mm");
 			_engine.Process(new RangeBar(bar - 1, et, k.Open, k.High, k.Low, k.Close, k.Volume, k.Delta));
-			DrawLevels(bar - 1);
+			TrackDay(bar - 1, et);
 		}
-
-		if (ToEt(GetCandle(bar).Time).Date == _engine.Day)
-			DrawLevels(bar);
 
 		if (IsLive && bar == CurrentBar - 1)
 			ManageLive(bar);
@@ -270,10 +283,7 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private void OnEntered(int bar, int dir, decimal price, decimal stop, decimal target)
 	{
-		if (dir > 0)
-			_longEntry[bar] = price;
-		else
-			_shortEntry[bar] = price;
+		_trades.Add(new TradeMark { EntryBar = bar, Dir = dir, Entry = price, Stop = stop, Target = target });
 
 		// Initial risk, kept so R still means something after the stop moves to breakeven.
 		_riskTicks = InstrumentInfo.TickSize > 0 ? Math.Abs(price - stop) / InstrumentInfo.TickSize : 0;
@@ -295,10 +305,14 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private void OnExited(int bar, decimal price, decimal pnl, string reason)
 	{
-		if (pnl > 0)
-			_winExit[bar] = price;
-		else
-			_lossExit[bar] = price;
+		if (_trades.Count > 0 && _trades[^1].ExitBar < 0)
+		{
+			var t = _trades[^1];
+			t.ExitBar = bar;
+			t.Exit = price;
+			t.Pnl = pnl;
+			t.Reason = reason;
+		}
 
 		_lastEvent = $"{reason}: {pnl:N0}";
 
@@ -501,17 +515,180 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	#region Drawing and time
 
-	private void DrawLevels(int bar)
+	private sealed class DayBox
 	{
-		if (_engine.State is RangeDayState.Waiting or RangeDayState.Building or RangeDayState.Skipped)
+		public DateTime Day;
+		public int Start, End, Last;
+		public decimal High, Low;
+		public bool Skipped;
+	}
+
+	private sealed class TradeMark
+	{
+		public int EntryBar, ExitBar = -1, Dir;
+		public decimal Entry, Stop, Target, Exit, Pnl;
+		public string Reason;
+	}
+
+	// Called once per closed bar, after the engine has seen it.
+	private void TrackDay(int bar, DateTime et)
+	{
+		if (_engine.State == RangeDayState.Waiting)
 			return;
 
-		_rangeHi[bar] = _engine.High;
-		_rangeLo[bar] = _engine.Low;
-		var inTrade = _engine.State == RangeDayState.InTrade;
-		_stopLine[bar] = inTrade ? _engine.StopPrice : 0;
-		_targetLine[bar] = inTrade ? _engine.TargetPrice : 0;
+		var box = _boxes.Count > 0 && _boxes[^1].Day == _engine.Day ? _boxes[^1] : null;
+
+		if (_engine.State == RangeDayState.Building)
+		{
+			if (box is null)
+				_boxes.Add(box = new DayBox { Day = _engine.Day, Start = bar });
+
+			box.End = bar;
+			box.High = _engine.High;
+			box.Low = _engine.Low;
+		}
+
+		if (box is null)
+			return;
+
+		box.Skipped = _engine.State == RangeDayState.Skipped;
+
+		if (et.TimeOfDay <= _s.HardClose)
+			box.Last = bar;
 	}
+
+	private static Color Draw(CrossColor c, int alpha = 255) => Color.FromArgb(alpha, c.R, c.G, c.B);
+
+	private void DrawChart(RenderContext ctx)
+	{
+		var c = ChartInfo?.PriceChartContainer;
+
+		if (c is null)
+			return;
+
+		var first = Math.Max(0, FirstVisibleBarNumber);
+		var last = Math.Min(CurrentBar - 1, LastVisibleBarNumber);
+		var tick = InstrumentInfo.TickSize;
+
+		for (var i = 0; i < _boxes.Count; i++)
+		{
+			var b = _boxes[i];
+			var lineEnd = i == _boxes.Count - 1 && b.Last >= CurrentBar - 2 ? CurrentBar - 1 : b.Last;
+
+			if (lineEnd < first || b.Start > last)
+				continue;
+
+			var x1 = c.GetXByBar(b.Start, true);
+			var x2 = c.GetXByBar(b.End, false);
+			var yHi = c.GetYByPrice(b.High, false);
+			var yLo = c.GetYByPrice(b.Low, false);
+			var box = new Rectangle(x1, yHi, Math.Max(1, x2 - x1), Math.Max(1, yLo - yHi));
+			ctx.FillRectangle(Draw(BoxColor, BoxOpacity), box);
+			ctx.DrawRectangle(new RenderPen(Color.FromArgb(255, 120, 120, 120), 1), box);
+
+			var caption = $"{RangeStart:hh\\:mm}-{RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped" : "")}";
+			ctx.DrawString(caption, _labelFont, Color.FromArgb(255, 154, 154, 154), x1, yHi - ctx.MeasureString(caption, _labelFont).Height - 2);
+
+			if (b.Skipped)
+				continue;
+
+			var xEnd = c.GetXByBar(lineEnd, false);
+			var latest = i == _boxes.Count - 1;
+			DrawLevel(ctx, c, "IBH", b.High, x2, xEnd, HighColor, latest);
+			DrawLevel(ctx, c, "IBM", (b.High + b.Low) / 2, x2, xEnd, MidColor, latest);
+			DrawLevel(ctx, c, "IBL", b.Low, x2, xEnd, LowColor, latest);
+		}
+
+		for (var i = 0; i < _trades.Count; i++)
+		{
+			var t = _trades[i];
+			var exitBar = t.ExitBar >= 0 ? t.ExitBar : CurrentBar - 1;
+
+			if (exitBar < first || t.EntryBar > last)
+				continue;
+
+			DrawTrade(ctx, c, t, exitBar, i == _trades.Count - 1);
+		}
+	}
+
+	private void DrawLevel(RenderContext ctx, IChartContainer c, string name, decimal price, int x1, int x2, CrossColor color, bool label)
+	{
+		var y = c.GetYByPrice(price, false);
+		ctx.DrawLine(new RenderPen(Draw(color), 1, DashStyle.Dash), x1, y, x2, y);
+
+		if (label)
+			ctx.DrawString(name, _tagFont, Draw(color), x2 + 6, y - ctx.MeasureString(name, _tagFont).Height / 2);
+	}
+
+	private void DrawTrade(RenderContext ctx, IChartContainer c, TradeMark t, int exitBar, bool latest)
+	{
+		var open = t.ExitBar < 0;
+		var xs = Center(c, t.EntryBar);
+		var xe = Center(c, exitBar);
+		var stop = open ? (IsLive && _brokerStop > 0 ? _brokerStop : _engine.StopPrice) : t.Stop;
+		var stopColor = Draw(StopColor);
+		var targetColor = Draw(TargetColor);
+
+		var yEntry = c.GetYByPrice(t.Entry, false);
+		var yStop = c.GetYByPrice(stop, false);
+		var yTarget = c.GetYByPrice(t.Target, false);
+		ctx.DrawLine(new RenderPen(Color.FromArgb(255, 154, 154, 154), 1), xs, yEntry, xe, yEntry);
+		ctx.DrawLine(new RenderPen(stopColor, 2), xs, yStop, xe, yStop);
+		ctx.DrawLine(new RenderPen(targetColor, 2), xs, yTarget, xe, yTarget);
+
+		if (_s.ProtectAtPct > 0)
+		{
+			var yProtect = c.GetYByPrice(t.Entry + (t.Target - t.Entry) * _s.ProtectAtPct / 100m, false);
+			ctx.DrawLine(new RenderPen(Draw(TargetColor, 150), 1, DashStyle.Dot), xs, yProtect, xe, yProtect);
+
+			if (latest)
+				Label(ctx, $"{_s.ProtectAtPct:0}% · protect", Draw(TargetColor, 180), xe + 6, yProtect);
+		}
+
+		if (latest)
+		{
+			Label(ctx, $"Stop {stop:0.00}", stopColor, xe + 6, yStop);
+			Label(ctx, $"Target {t.Target:0.00}", targetColor, xe + 6, yTarget);
+		}
+
+		// Entry: small triangle on the side the trade came from, tag beyond it.
+		var dirColor = t.Dir > 0 ? targetColor : stopColor;
+		var tip = t.Dir > 0 ? yEntry + 4 : yEntry - 4;
+		var baseY = t.Dir > 0 ? tip + 8 : tip - 8;
+		ctx.FillPolygon(dirColor, new[] { new Point(xs - 5, baseY), new Point(xs + 5, baseY), new Point(xs, tip) });
+		Tag(ctx, $"{(t.Dir > 0 ? "Long" : "Short")} {t.Entry:0.00}", dirColor, xs, t.Dir > 0 ? baseY + 3 : baseY - 3, t.Dir < 0);
+
+		if (open)
+			return;
+
+		var win = t.Pnl > 0;
+		var exitColor = win ? targetColor : stopColor;
+		var yExit = c.GetYByPrice(t.Exit, false);
+		ctx.FillEllipse(exitColor, new Rectangle(xe - 4, yExit - 4, 8, 8));
+
+		// Exit tag goes on the far side from the entry so it never sits on the entry tag.
+		var below = yExit >= yEntry;
+		Tag(ctx, $"{(t.Pnl >= 0 ? "+" : "-")}${Math.Abs(t.Pnl):N0} {t.Reason.ToLowerInvariant()}", exitColor, xe, below ? yExit + 10 : yExit - 10, !below);
+	}
+
+	private static int Center(IChartContainer c, int bar) => (c.GetXByBar(bar, true) + c.GetXByBar(bar, false)) / 2;
+
+	private void Label(RenderContext ctx, string text, Color color, int x, int y) =>
+		ctx.DrawString(text, _labelFont, color, x, y - ctx.MeasureString(text, _labelFont).Height / 2);
+
+	// Pill: tinted fill, thin border, text centred on x. 'above' grows the pill upward from y.
+	private void Tag(RenderContext ctx, string text, Color color, int x, int y, bool above)
+	{
+		var size = ctx.MeasureString(text, _tagFont);
+		var w = size.Width + 10;
+		var h = size.Height + 4;
+		var rect = new Rectangle(x - w / 2, above ? y - h : y, w, h);
+		ctx.FillRectangle(Color.FromArgb(45, color.R, color.G, color.B), rect);
+		ctx.DrawRectangle(new RenderPen(color, 1), rect);
+		ctx.DrawString(text, _tagFont, Lighten(color), rect.X + 5, rect.Y + 2);
+	}
+
+	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);
 
 	private DateTime ToEt(DateTime time) =>
 		_chartTimeIsUtc ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(time, DateTimeKind.Utc), Eastern) : time;
@@ -534,7 +711,12 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	protected override void OnRender(RenderContext context, DrawingLayouts layout)
 	{
-		if (!ShowDashboard || ChartInfo is null || Container is null || InstrumentInfo.TickSize <= 0)
+		if (ChartInfo is null || Container is null || InstrumentInfo.TickSize <= 0)
+			return;
+
+		DrawChart(context);
+
+		if (!ShowDashboard)
 			return;
 
 		var e = _engine;
