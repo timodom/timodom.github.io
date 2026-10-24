@@ -15,7 +15,7 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 | Protect exit (engine) | 7/7 synthetic-bar tests pass (`atas-edge/tests/RangeBreakoutEngine.Tests`) |
 | Live entry limit placement | Verified in Market Replay: registers 0.02–0.3 s after the breakout bar closes |
 | Live order handling after the 2026-10-23 incident fix (`f81d05b`) | **Not yet run against an account.** Audit a Replay session before any live use |
-| Edge: an actual edge | Current bot: **no** (continuous ES 193 days, PF 0.92, test half 0.53). **Candidate regime system** (narrow IB → immediate breakout, wide IB → rotation): PF 1.60, train 1.51 / test 1.80, +$17k, 88 trades — promising, not yet forward-tested |
+| Edge: an actual edge | Current bot: **no** (continuous ES 193 days, PF 0.92, test half 0.53). **ORB-15 with immediate entry**: PF ≈ 1.3, t ≈ 2.4–2.6 over ~3 years of 15m ES incl. 2 unseen years (run 4). Regime/rotation idea did NOT survive out of sample |
 
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
@@ -40,6 +40,37 @@ row but leaves 10 trades in ~140 sessions because most 09:30–09:45 ES ranges i
 wider than 40 ticks — too few to mean anything. B and E trade risk for hit rate and lose more.
 C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
 Trading was left OFF.
+
+## Research run 4 — continuous ES 15m, ~3 years (2023-12-17 .. 2026-10-23), the deciding test
+
+ATAS gave 15-minute history back to 2023-12-17 (709 RTH days). The 471 days before 2025-11-09
+were **never seen** by runs 1–3, so they are the real out-of-sample test. On 15m bars the IB-15
+is the single 09:30 bar and breakouts are judged on 15-minute closes (coarser than the 5m bot).
+
+| | All 709 days: trades / PF / net / t | Train / test PF | **Unseen 471 days**: trades / PF / net / t |
+|---|---|---|---|
+| Current bot (ORB-15 **retest**) | 351 / 0.93 / −$8,017 / −0.6 | 0.89 / 1.08 | 260 / 0.87 / −$11,403 / −1.0 |
+| **ORB-15 immediate** | **509 / 1.30 / +$57,314 / 2.6** | **1.29 / 1.33** | **376 / 1.32 / +$42,746 / 2.4** |
+| IB-30 immediate | 331 / 1.08 / +$10,514 / 0.6 | 1.15 / 0.82 | 261 / 1.16 / +$14,969 / 1.0 |
+| IB-60 immediate | 446 / 1.09 / +$17,966 / 0.8 | 1.17 / 0.92 | 315 / 1.14 / +$17,878 / 0.9 |
+| Immediate, IB/ADR < 0.25 | 340 / 1.36 / +$44,115 / 2.5 | 1.29 / 1.59 | 256 / 1.34 / +$30,114 / 2.1 |
+| Immediate, IB/ADR ≥ 0.35 | 155 / 0.95 / −$6,383 / −0.3 | 1.05 / 0.79 | 82 / 1.14 / +$8,635 / 0.4 |
+| Rotation (IB-15, to IBM), all days | 214 / 0.76 / −$7,881 / −1.6 | 0.47 / 1.89 | 149 / **0.44** / −$14,359 / **−3.7** |
+| Rotation, IB/ADR ≥ 0.40 | 41 / 0.87 / −$1,352 | 0.29 / 2.05 | 18 / 0.26 / −$5,022 / −2.1 |
+| Combined regime system | 381 / 1.32 / +$42,764 / 2.4 | 1.22 / 1.64 | 274 / 1.26 / +$25,092 / 1.7 |
+
+**Verdict after ~3 years.**
+- **Survives:** ORB-15 with **immediate entry** — positive in every period tested (5m 2026, 5m
+  one year, 15m three years, and the unseen 2024–25 alone), PF ≈ 1.3, t ≈ 2.4–2.6. The current
+  **retest** entry loses in every long sample. This is the one finding that looks real.
+- **Did not survive:** wide-IB rotation (strongly negative out of sample, t −3.7) and "wide-IB
+  breakouts always lose" (true in 2026, not in 2024–25). The combined regime system's 2026 edge
+  came from those two and fades out of sample.
+- **Narrow-IB filter (< 0.25):** similar PF to unfiltered immediate (1.34–1.36 vs 1.30–1.32) with
+  fewer trades — a small, unproven improvement at best.
+- Costs: 1 tick slippage per side is ~$25 per trade; on 509 trades that is ~$12.7k, leaving the
+  3-year result still clearly positive (~$44.6k, PF ≈ 1.23). Max drawdown ≈ $11k on 1 ES
+  (≈ $1.1k on 1 MES).
 
 ## Research run 3 — continuous ES 5m, one year + unseen stretch
 

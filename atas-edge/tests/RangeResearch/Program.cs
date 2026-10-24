@@ -39,9 +39,13 @@ if (fromIdx >= 0)
 }
 
 var rth = bars.Where(b => b.Et.TimeOfDay >= new TimeSpan(9, 30, 0) && b.Et.TimeOfDay < new TimeSpan(16, 0, 0)).ToList();
-var days = rth.GroupBy(b => b.Et.Date).Where(g => g.Count() >= 60).Select(g => g.Key).OrderBy(d => d).ToList();
+// Bar size from the data (5m, 15m...), so "full day" and the rotation confirm window mean the same
+// amount of time whatever the chart. A full RTH day needs 75% of its 390 minutes of bars.
+var barMinutes = bars.Zip(bars.Skip(1), (a, b) => (b.Et - a.Et).TotalMinutes).Where(m => m > 0).OrderBy(m => m).ElementAt(bars.Count / 2);
+var confirm = Math.Max(1, (int)Math.Round(10 / barMinutes));
+var days = rth.GroupBy(b => b.Et.Date).Where(g => g.Count() >= 0.75 * 390 / barMinutes).Select(g => g.Key).OrderBy(d => d).ToList();
 var splitDay = days[(int)(days.Count * 0.7)];
-Console.WriteLine($"Bars {bars.Count}, {bars[0].Et:yyyy-MM-dd} .. {bars[^1].Et:yyyy-MM-dd} ET, full RTH days {days.Count}, test period from {splitDay:yyyy-MM-dd}");
+Console.WriteLine($"Bars {bars.Count} ({barMinutes:0}m), {bars[0].Et:yyyy-MM-dd} .. {bars[^1].Et:yyyy-MM-dd} ET, full RTH days {days.Count}, test period from {splitDay:yyyy-MM-dd}");
 
 // Average daily range: mean RTH high-low of the 14 PRIOR days (no look-ahead).
 var dayRange = days.ToDictionary(d => d, d => { var g = rth.Where(b => b.Et.Date == d); return g.Max(b => b.High) - g.Min(b => b.Low); });
@@ -181,9 +185,9 @@ foreach (var (ibName, ibEnd) in new[] { ("IB-15", new TimeSpan(9, 45, 0)), ("IB-
 {
 	foreach (var frac in new[] { 1.0m, 0.5m })
 	{
-		Row($"{ibName} all days, target {(frac == 1 ? "IBM" : "half to IBM")}", Rotation(ibEnd, frac, 2, 0, 9));
+		Row($"{ibName} all days, target {(frac == 1 ? "IBM" : "half to IBM")}", Rotation(ibEnd, frac, confirm, 0, 9));
 		foreach (var (lo, hi) in new[] { (0m, 0.25m), (0.25m, 0.40m), (0.40m, 9m) })
-			Row($"  IB/ADR {lo:0.00}-{(hi > 1 ? "up" : hi.ToString("0.00"))}", Rotation(ibEnd, frac, 2, lo, hi));
+			Row($"  IB/ADR {lo:0.00}-{(hi > 1 ? "up" : hi.ToString("0.00"))}", Rotation(ibEnd, frac, confirm, lo, hi));
 	}
 }
 
@@ -194,7 +198,7 @@ foreach (var (ibName, ibEnd) in new[] { ("IB-15", new TimeSpan(9, 45, 0)), ("IB-
 Header("COMBINED REGIME SYSTEM (IB-15 / avg daily range)");
 var brk = RunEngine(s => { s.Entry = RangeEntry.Immediate; s.MaxRangeTicks = 10000; })
 	.Where(x => { var r = IbRatio(x.Day, new(9, 45, 0)); return r >= 0 && r < 0.25m; }).ToList();
-var rot = Rotation(new(9, 45, 0), 1.0m, 2, 0.40m, 9);
+var rot = Rotation(new(9, 45, 0), 1.0m, confirm, 0.40m, 9);
 var combo = brk.Concat(rot).OrderBy(x => x.Day).ToList();
 Row("Breakout leg (IB/ADR < 0.25, immediate)", brk);
 Row("Rotation leg (IB/ADR >= 0.40, to IBM)", rot);
