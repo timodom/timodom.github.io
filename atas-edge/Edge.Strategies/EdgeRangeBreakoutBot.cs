@@ -772,9 +772,6 @@ public class EdgeRangeBreakoutBot : Indicator
 			ctx.FillRectangle(ChartBg, capRect);
 			ctx.DrawString(caption, _labelFont, Color.FromArgb(255, 154, 154, 154), capRect.X + 3, capRect.Y + 1);
 
-			if (b.Skipped)
-				continue;
-
 			// Today's lines run to the right edge with the labels parked there, like the IB indicator.
 			var latest = i == _boxes.Count - 1;
 			var labelW = ctx.MeasureString("IBH", _tagFont).Width;
