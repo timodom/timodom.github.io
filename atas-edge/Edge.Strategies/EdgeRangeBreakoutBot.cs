@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
+using System.Threading.Tasks;
 
 using ATAS.DataFeedsCore;
 using ATAS.Indicators;
 using ATAS.Indicators.Drawing;
-using ATAS.Strategies.Chart;
 
 using Edge.Atas.Core;
 
@@ -23,10 +23,12 @@ using OFT.Rendering.Control;
 /// Live trading ON: the same engine places real orders, with a stop and a target resting at
 /// the broker on every position. Live orders only start once real-time (or replay) ticks
 /// arrive, never from the historical load.
+/// Built on Indicator (not ChartStrategy) because current ATAS only lists Indicator types;
+/// orders go through the chart's TradingManager.
 /// </summary>
 [DisplayName("Edge Range Breakout Bot")]
 [Category("Edge")]
-public class EdgeRangeBreakoutBot : ChartStrategy
+public class EdgeRangeBreakoutBot : Indicator
 {
 	#region Fields
 
@@ -353,12 +355,28 @@ public class EdgeRangeBreakoutBot : ChartStrategy
 			Send(position > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Market, 0, Math.Abs(position), "Edge ORB flatten");
 	}
 
+	private decimal CurrentPosition => TradingManager?.Position?.Volume ?? 0m;
+
+	private decimal AveragePrice => TradingManager?.Position?.AveragePrice ?? 0m;
+
+	private Portfolio Portfolio => TradingManager?.Portfolio;
+
 	private Order Send(OrderDirections side, OrderTypes type, decimal price, decimal qty, string comment)
 	{
+		var tm = TradingManager;
+		var security = tm?.Security;
+
+		if (security is null || tm.Portfolio is null)
+		{
+			_lastEvent = $"No account/instrument - {comment} not sent";
+			return null;
+		}
+
 		var order = new Order
 		{
-			Portfolio = Portfolio,
-			Security = Security,
+			Portfolio = tm.Portfolio,
+			Security = security,
+			SecurityId = security.SecurityId,
 			Direction = side,
 			Type = type,
 			QuantityToFill = qty,
@@ -368,26 +386,41 @@ public class EdgeRangeBreakoutBot : ChartStrategy
 		if (type == OrderTypes.Limit)
 			order.Price = price;
 		else if (type == OrderTypes.Stop)
-			order.TriggerPrice = price;
+			order.TriggerPrice = order.Price = price;
 
-		OpenOrder(order);
+		// Never block the calculate thread on the broker call; it can deadlock ATAS.
+		Task.Run(async () =>
+		{
+			try { await tm.OpenOrderAsync(order, false, false, false); }
+			catch (Exception ex) { _lastEvent = $"{comment} rejected: {ex.Message}"; }
+		});
+
 		return order;
 	}
 
 	private void Cancel(ref Order order)
 	{
-		if (order is not null && order.State == OrderStates.Active)
-			CancelOrder(order);
+		var tm = TradingManager;
+		var o = order;
+
+		if (o is not null && o.State == OrderStates.Active && tm is not null)
+		{
+			Task.Run(async () =>
+			{
+				try { await tm.CancelOrderAsync(o, false, false); }
+				catch (Exception ex) { _lastEvent = $"Cancel failed: {ex.Message}"; }
+			});
+		}
 
 		order = null;
 	}
 
-	protected override void OnStopping()
+	protected override void OnDispose()
 	{
 		if (FlattenOnStop && _liveTrading)
 			Flatten();
 
-		base.OnStopping();
+		base.OnDispose();
 	}
 
 	#endregion
