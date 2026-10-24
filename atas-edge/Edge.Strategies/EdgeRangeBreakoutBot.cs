@@ -766,7 +766,7 @@ public class EdgeRangeBreakoutBot : Indicator
 			ctx.FillRectangle(Draw(BoxColor, BoxOpacity), box);
 			ctx.DrawRectangle(new RenderPen(Color.FromArgb(255, 120, 120, 120), 1), box);
 
-			var caption = $"{RangeStart:hh\\:mm}-{RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped" : "")}";
+			var caption = $"{RangeStart:hh\\:mm}-{RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped - outside risk parameters" : "")}";
 			var capSize = ctx.MeasureString(caption, _labelFont);
 			var capRect = new Rectangle(x1, yHi - capSize.Height - 4, capSize.Width + 6, capSize.Height + 2);
 			ctx.FillRectangle(ChartBg, capRect);
