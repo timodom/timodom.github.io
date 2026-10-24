@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- MARKET edition of the range breakout bot: same source as the in-house bot
-       (Edge.Strategies/EdgeRangeBreakoutBot.cs) built with MARKET defined, so the validated setup is
+       (Edge.Strategies/OpeningRangeBot.cs) built with MARKET defined, so the validated setup is
        locked, settings are reduced and unsupported charts are refused. Ships as its own DLL, with no
        trail manager or research tools. -->
   <PropertyGroup>
@@ -9,8 +9,8 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <RootNamespace>Edge.Atas.Market</RootNamespace>
-    <AssemblyName>Edge.Atas.Market</AssemblyName>
+    <RootNamespace>OpeningRange.Market</RootNamespace>
+    <AssemblyName>OpeningRangeBot</AssemblyName>
     <DefineConstants>$(DefineConstants);MARKET</DefineConstants>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <ATAS_BASE Condition=" '$(ATAS_BASE)' == '' ">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Edge.Strategies\EdgeRangeBreakoutBot.cs" Link="EdgeRangeBreakoutBot.cs" />
+    <Compile Include="..\Edge.Strategies\OpeningRangeBot.cs" Link="OpeningRangeBot.cs" />
     <Compile Include="..\Edge.Indicators\GlobalUsings.cs" Link="Shared\GlobalUsings.cs" />
     <Compile Include="..\Edge.Indicators\Core\BarMath.cs" Link="Shared\BarMath.cs" />
     <Compile Include="..\Edge.Indicators\Core\DragPanel.cs" Link="Shared\DragPanel.cs" />

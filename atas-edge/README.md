@@ -11,7 +11,7 @@ Clean-room ATAS (C#) versions of the six HolyGrailAlgo NinjaTrader tools. HGA do
 | Channel Breaks | `Edge Channel Breaks` | Uses a Donchian channel. Breakouts need above-average volume and delta in the breakout direction. Fades need a wick through the channel edge and a close back inside. Choose Breakouts, Fades or Both. The dashboard shows distance to the channel edges. |
 | Strength | `Edge Strength` | Band **color** shows direction and force (smoothed RSI). Band **width** shows trend efficiency, so it widens in clean trends and narrows in chop. Bull/Bear prints mark confirmed swings that were RSI-extreme or RSI-divergent. The dashboard shows RSI, strength and efficiency. |
 
-**New: `Edge Range Breakout Bot`**: an opening range / initial balance breakout bot for ES on 5-minute bars. With live trading off (the default) it simulates trades and shows backtest stats. With it on, it places real orders, each with a stop and a target resting at the broker. It's built on `Indicator` (ATAS 8 has no UI for `ChartStrategy`), so it appears in the Indicators list. Spec: `docs/range-breakout-spec.md`. Status, changelog and open items: `docs/range-breakout-log.md`.
+**New: `Opening Range Bot`** (formerly Edge Range Breakout Bot; market and in-house editions, see `docs/editions.md`): an opening range / initial balance breakout bot for ES on 5-minute bars. With live trading off (the default) it simulates trades and shows backtest stats. With it on, it places real orders, each with a stop and a target resting at the broker. It's built on `Indicator` (ATAS 8 has no UI for `ChartStrategy`), so it appears in the Indicators list. Spec: `docs/range-breakout-spec.md`. Status, changelog and open items: `docs/range-breakout-log.md`.
 
 All panels can be dragged with the mouse, and their position is saved with the chart template. Every signal has an optional ATAS alert.
 
@@ -48,7 +48,8 @@ Edge.Indicators/
   Edge*.cs                   One file per tool (visual output and settings only)
 Edge.Strategies/
   EdgeTrailManager.cs        Execution and risk (links the Core files in at compile time)
-  EdgeRangeBreakoutBot.cs    Range breakout bot: chart, dashboard, live orders (engine in Core/RangeBreakoutEngine.cs)
+  OpeningRangeBot.cs         Opening Range Bot: chart, dashboard, live orders (engine in Core/RangeBreakoutEngine.cs)
+Edge.Market/                 Builds the market edition (OpeningRangeBot.dll) from the same source
 tests/
   RangeBreakoutEngine.Tests  Synthetic-bar checks for the engine (dotnet run, no ATAS needed)
 ```

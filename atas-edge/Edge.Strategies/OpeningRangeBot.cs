@@ -1,7 +1,7 @@
 #if MARKET
-namespace Edge.Atas.Market;
+namespace OpeningRange.Market;
 #else
-namespace Edge.Atas;
+namespace OpeningRange;
 #endif
 
 using System;
@@ -36,12 +36,12 @@ using OFT.Rendering.Tools;
 /// the validated setup locked, settings reduced, instrument detected, unsupported charts refused.
 /// </summary>
 #if MARKET
-[DisplayName("Edge Bot")]
+[DisplayName("Opening Range Bot")]
 #else
-[DisplayName("Edge Range Breakout Bot")]
+[DisplayName("Opening Range Bot (in-house)")]
 #endif
 [Category("Edge")]
-public class EdgeRangeBreakoutBot : Indicator
+public class OpeningRangeBot : Indicator
 {
 	#region Fields
 
@@ -64,7 +64,7 @@ public class EdgeRangeBreakoutBot : Indicator
 	private bool _realtime;
 	private int _lastCalcBar = -1;
 	private bool _killedForDay;
-	private const string OrderTag = "Edge ORB";
+	private const string OrderTag = "OpeningRange";
 	private readonly List<Order> _sent = new();
 	private string _tradeId = "-";
 	private decimal _entryPrice;
@@ -248,7 +248,7 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	#endregion
 
-	public EdgeRangeBreakoutBot()
+	public OpeningRangeBot()
 	{
 		DenyToChangePanel = true;
 		EnableCustomDrawing = true;
@@ -256,10 +256,9 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		((ValueDataSeries)DataSeries[0]).VisualType = VisualMode.Hide;
 
-#if MARKET
 		// The validated setup (ES, ~3 years): everything at its default except immediate entry.
+		// Market locks it; in-house starts there and can still be changed.
 		_s.Entry = RangeEntry.Immediate;
-#endif
 		_engine = new RangeBreakoutEngine(_s);
 		_engine.PendingPlaced += OnPendingPlaced;
 		_engine.PendingCancelled += OnPendingCancelled;
@@ -931,9 +930,9 @@ public class EdgeRangeBreakoutBot : Indicator
 	private static string Money(decimal v) => v.ToString("+$#,0;-$#,0;$0");
 
 #if MARKET
-	private const string Title = "Edge Bot";
+	private const string Title = "Opening Range Bot";
 #else
-	private const string Title = "Edge Range Breakout Bot";
+	private const string Title = "Opening Range Bot (in-house)";
 #endif
 
 	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);

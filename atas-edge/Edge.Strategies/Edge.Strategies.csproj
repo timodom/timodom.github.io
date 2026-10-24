@@ -5,8 +5,8 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <RootNamespace>Edge.Atas</RootNamespace>
-    <AssemblyName>Edge.Atas.Strategies</AssemblyName>
+    <RootNamespace>OpeningRange</RootNamespace>
+    <AssemblyName>OpeningRangeBot.InHouse</AssemblyName>
     <ATAS_BASE Condition=" '$(ATAS_BASE)' == '' ">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
     <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
