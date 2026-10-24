@@ -150,6 +150,26 @@ max range also drifts as NQ's price rises; a limit relative to recent daily rang
 off, simulation. The dashboard shows 585 trades, 52% win, PF 1.31, +$158,945, avg +$272, max
 drawdown $20,719, identical to the harness.
 
+### Last entry time (NQ and ES, 15m, 3 years)
+
+Owner question: does the 11:30 ET (London close) cut-off for new entries matter? Scratch harness
+with LastEntry exposed (repo harness unchanged); the default 11:30 reproduces the validated rows.
+
+| Last entry | NQ: trades / PF / net / max DD / t | ES: trades / PF / net / max DD / t |
+|---|---|---|
+| 10:00 | 291 / 1.24 / +$68,336 / $29,253 / 1.6 | 240 / 1.38 / +$35,465 / $8,052 / 2.3 |
+| 10:30 | 496 / 1.32 / +$143,131 / $24,003 / 2.7 | 425 / 1.27 / +$44,850 / $9,930 / 2.2 |
+| 11:00 | 555 / 1.33 / +$162,580 / $19,036 / 2.9 | 483 / 1.29 / +$53,018 / $10,253 / 2.5 |
+| **11:30 (default)** | **585 / 1.31 / +$158,945 / $20,719 / 2.8** | **509 / 1.30 / +$57,314 / $10,974 / 2.6** |
+| 12:00 | 598 / 1.31 / +$162,648 / $21,787 / 2.8 | 522 / 1.32 / +$61,250 / $11,482 / 2.8 |
+| 13:00 | 626 / 1.31 / +$169,176 / $24,826 / 2.9 | 537 / 1.33 / +$64,177 / $11,373 / 2.9 |
+| 15:00 | 654 / 1.28 / +$158,659 / $24,826 / 2.7 | 568 / 1.34 / +$68,778 / $8,972 / 3.0 |
+
+**Verdict: keep 11:30.** Results are flat from 10:30 to 14:00 on both markets. 85% of NQ trades
+open before 10:30, and later breakouts add a few trades at the same PF. The 11:30 London close is
+not a turning point. ES improves slightly with a later cut-off (PF 1.30 → 1.33–1.34), which is
+within noise and not worth unlocking the validated setup for.
+
 ### NQ on 5m vs 15m (same 238 days)
 
 `NQ-67797.csv`: NQ continuous 5m, 2025-11-09 .. 2026-10-23 (ATAS caps 5m at ~1 year). It has
