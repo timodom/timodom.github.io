@@ -41,6 +41,30 @@ wider than 40 ticks — too few to mean anything. B and E trade risk for hit rat
 C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
 Trading was left OFF.
 
+## Research run 3 — continuous ES 5m, one year + unseen stretch
+
+ATAS capped 5-minute history at ~1 year even with 1,500 days requested: `ES-67797.csv`,
+2025-11-09 .. 2026-10-23, 238 RTH days. The 2025-11-09 .. 2026-01-16 stretch was **never seen**
+in runs 1–2, so it is a true out-of-sample check. t = mean trade P&L ÷ standard error (≈2 is the
+usual bar; rough, ignores the ~30 variants tried).
+
+| | Full year: trades / PF / net / t | Last 30% (test) PF | Unseen stretch only: trades / PF / net |
+|---|---|---|---|
+| Current bot (ORB-15 retest) | 111 / 1.05 / +$2,081 / 0.2 | 0.61 | 29 / 1.60 / +$4,847 |
+| ORB-15 immediate | 139 / 1.31 / +$16,932 / 1.5 | 1.23 | 31 / 1.18 / +$1,914 |
+| Narrow-IB breakout leg (< 0.25) | 83 / 1.57 / +$16,818 / 1.9 | 1.69 | 15 / 1.43 / +$1,903 |
+| Wide-IB rotation leg (≥ 0.40) | 32 / 1.58 / +$3,085 / 1.1 | 3.78 | 5 / 1.18 / +$155 |
+| **Combined regime system** | **115 / 1.57 / +$19,903 / 2.2** | **1.80** | **20 / 1.39 / +$2,058** |
+| Combined, 1 tick slippage/side | 115 / 1.47 / +$17,028 / 1.9 | 1.68 | 20 / 1.28 / +$1,558 |
+| Wide-IB breakouts (≥ 0.35), avoided | 68 / 0.79 / −$10,810 / −0.8 | 0.69 | 10 / 0.51 / −$3,015 |
+
+**Reading.** The combined system stays positive in every slice: train, test and the unseen
+stretch. Wide-IB breakouts lose in every slice, so "don't take breakouts on wide-IB days" is the
+most consistent finding. Over the full year the system reaches t ≈ 2.2 (1.9 after slippage):
+borderline significant, and less so once the number of variants tried is counted. In the unseen
+stretch it made money but trailed the current bot (PF 1.39 vs 1.60) on only 20 trades. Verdict:
+**a real candidate worth building and forward-testing, not a proven edge.**
+
 ## Research run 2 — continuous ES, 193 days (2026-01-18 .. 2026-10-23)
 
 Export of the **continuous ES** contract (`ES-54819.csv`, 25–38M contracts every month, no roll
