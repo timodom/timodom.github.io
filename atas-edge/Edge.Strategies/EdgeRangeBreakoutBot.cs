@@ -578,8 +578,8 @@ public class EdgeRangeBreakoutBot : Indicator
 			if (lineEnd < first || b.Start > last)
 				continue;
 
-			var x1 = c.GetXByBar(b.Start, true);
-			var x2 = c.GetXByBar(b.End, false);
+			var x1 = Left(c, b.Start);
+			var x2 = Left(c, b.End + 1);
 			var yHi = c.GetYByPrice(b.High, false);
 			var yLo = c.GetYByPrice(b.Low, false);
 			var box = new Rectangle(x1, yHi, Math.Max(1, x2 - x1), Math.Max(1, yLo - yHi));
@@ -587,13 +587,18 @@ public class EdgeRangeBreakoutBot : Indicator
 			ctx.DrawRectangle(new RenderPen(Color.FromArgb(255, 120, 120, 120), 1), box);
 
 			var caption = $"{RangeStart:hh\\:mm}-{RangeEnd:hh\\:mm} range · {(b.High - b.Low) / tick:N0}t{(b.Skipped ? " · skipped" : "")}";
-			ctx.DrawString(caption, _labelFont, Color.FromArgb(255, 154, 154, 154), x1, yHi - ctx.MeasureString(caption, _labelFont).Height - 2);
+			var capSize = ctx.MeasureString(caption, _labelFont);
+			var capRect = new Rectangle(x1, yHi - capSize.Height - 4, capSize.Width + 6, capSize.Height + 2);
+			ctx.FillRectangle(ChartBg, capRect);
+			ctx.DrawString(caption, _labelFont, Color.FromArgb(255, 154, 154, 154), capRect.X + 3, capRect.Y + 1);
 
 			if (b.Skipped)
 				continue;
 
-			var xEnd = c.GetXByBar(lineEnd, false);
+			// Today's lines run to the right edge with the labels parked there, like the IB indicator.
 			var latest = i == _boxes.Count - 1;
+			var labelW = ctx.MeasureString("IBH", _tagFont).Width;
+			var xEnd = latest ? Container.Region.Right - labelW - 12 : Left(c, lineEnd + 1);
 			DrawLevel(ctx, c, "IBH", b.High, x2, xEnd, HighColor, latest);
 			DrawLevel(ctx, c, "IBM", (b.High + b.Low) / 2, x2, xEnd, MidColor, latest);
 			DrawLevel(ctx, c, "IBL", b.Low, x2, xEnd, LowColor, latest);
@@ -671,7 +676,10 @@ public class EdgeRangeBreakoutBot : Indicator
 		Tag(ctx, $"{(t.Pnl >= 0 ? "+" : "-")}${Math.Abs(t.Pnl):N0} {t.Reason.ToLowerInvariant()}", exitColor, xe, below ? yExit + 10 : yExit - 10, !below);
 	}
 
-	private static int Center(IChartContainer c, int bar) => (c.GetXByBar(bar, true) + c.GetXByBar(bar, false)) / 2;
+	// Bar edges from consecutive bar starts, so this doesn't depend on what GetXByBar's flag means.
+	private static int Left(IChartContainer c, int bar) => c.GetXByBar(bar, true);
+
+	private static int Center(IChartContainer c, int bar) => (Left(c, bar) + Left(c, bar + 1)) / 2;
 
 	private void Label(RenderContext ctx, string text, Color color, int x, int y) =>
 		ctx.DrawString(text, _labelFont, color, x, y - ctx.MeasureString(text, _labelFont).Height / 2);
@@ -683,10 +691,14 @@ public class EdgeRangeBreakoutBot : Indicator
 		var w = size.Width + 10;
 		var h = size.Height + 4;
 		var rect = new Rectangle(x - w / 2, above ? y - h : y, w, h);
+		ctx.FillRectangle(ChartBg, rect);
 		ctx.FillRectangle(Color.FromArgb(45, color.R, color.G, color.B), rect);
 		ctx.DrawRectangle(new RenderPen(color, 1), rect);
 		ctx.DrawString(text, _tagFont, Lighten(color), rect.X + 5, rect.Y + 2);
 	}
+
+	// Near-opaque chart background behind tags and captions so candles don't show through.
+	private static readonly Color ChartBg = Color.FromArgb(235, 20, 24, 34);
 
 	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);
 
