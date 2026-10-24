@@ -62,6 +62,10 @@ public class EdgeRangeBreakoutBot : Indicator
 	private string _lastEvent = "-";
 	private int _pendingDir;
 	private decimal _riskTicks;
+	private decimal _liveBest;
+	private bool _liveProtectOn;
+	private decimal _brokerStop;
+	private volatile bool _modifyBusy;
 
 	#endregion
 
@@ -286,10 +290,7 @@ public class EdgeRangeBreakoutBot : Indicator
 		_lastEvent = $"Stop moved to {stop}";
 
 		if (IsLive && CurrentPosition != 0)
-		{
-			Cancel(ref _stopOrder);
-			_stopOrder = Send(CurrentPosition > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Stop, stop, Math.Abs(CurrentPosition), "Edge ORB stop");
-		}
+			MoveBrokerStop(stop);
 	}
 
 	private void OnExited(int bar, decimal price, decimal pnl, string reason)
@@ -339,7 +340,14 @@ public class EdgeRangeBreakoutBot : Indicator
 			var qty = Math.Abs(position);
 			_stopOrder = Send(exitSide, OrderTypes.Stop, _engine.StopPrice, qty, "Edge ORB stop");
 			_targetOrder = Send(exitSide, OrderTypes.Limit, _engine.TargetPrice, qty, "Edge ORB target");
+			_brokerStop = _engine.StopPrice;
+			_liveBest = _engine.EntryPrice;
+			_liveProtectOn = false;
 		}
+
+		// Protect on every tick: a flush is a price event, not a bar-close event.
+		if (position != 0 && _engine.State == RangeDayState.InTrade && _stopOrder is not null && _s.ProtectAtPct > 0)
+			ProtectLive(Math.Sign(position), price);
 
 		// Broker stop or target filled: cancel the other side, tell the engine.
 		if (position == 0 && _lastPosition != 0)
@@ -366,6 +374,59 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		if (position != 0)
 			Send(position > 0 ? OrderDirections.Sell : OrderDirections.Buy, OrderTypes.Market, 0, Math.Abs(position), "Edge ORB flatten");
+	}
+
+	private void ProtectLive(int dir, decimal last)
+	{
+		_liveBest = dir > 0 ? Math.Max(_liveBest, last) : Math.Min(_liveBest, last);
+
+		var trigger = _engine.EntryPrice + (_engine.TargetPrice - _engine.EntryPrice) * _s.ProtectAtPct / 100m;
+
+		if (!_liveProtectOn && (dir > 0 ? _liveBest >= trigger : _liveBest <= trigger))
+			_liveProtectOn = true;
+
+		if (_liveProtectOn)
+			MoveBrokerStop(_liveBest - dir * _s.ProtectPullbackTicks * InstrumentInfo.TickSize);
+	}
+
+	// Modifies the resting stop in place (no moment without a stop) and only ever tightens it.
+	// One modify at a time; the next tick retries with the newest price.
+	private void MoveBrokerStop(decimal price)
+	{
+		var tm = TradingManager;
+		var old = _stopOrder;
+		var tick = InstrumentInfo.TickSize;
+		var dir = Math.Sign(CurrentPosition);
+
+		if (tm is null || old is null || dir == 0 || tick <= 0 || _modifyBusy)
+			return;
+
+		price = Math.Round(price / tick) * tick;
+
+		if (dir > 0 ? price <= _brokerStop : price >= _brokerStop)
+			return;
+
+		var updated = (Order)old.Clone();
+		updated.TriggerPrice = updated.Price = price;
+		_modifyBusy = true;
+
+		Task.Run(async () =>
+		{
+			try
+			{
+				await tm.ModifyOrderAsync(old, updated, false, false);
+				_brokerStop = price;
+				_lastEvent = $"Stop moved to {price}";
+			}
+			catch (Exception ex)
+			{
+				_lastEvent = $"Stop move failed: {ex.Message}";
+			}
+			finally
+			{
+				_modifyBusy = false;
+			}
+		});
 	}
 
 	private decimal CurrentPosition => TradingManager?.Position?.Volume ?? 0m;
@@ -518,13 +579,15 @@ public class EdgeRangeBreakoutBot : Indicator
 
 		_rows.Add(new PanelRow("Side", $"{(e.Direction > 0 ? "LONG" : "SHORT")} {_s.Contracts}", Palette.Of(e.Direction)));
 		_rows.Add(new PanelRow("Entry", e.EntryPrice.ToString("0.00"), Palette.Muted));
-		_rows.Add(new PanelRow("Stop", $"{e.StopPrice:0.00} ({(e.StopPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Down));
+		var live = IsLive && _brokerStop > 0;
+		var stop = live ? _brokerStop : e.StopPrice;
+		_rows.Add(new PanelRow(live ? "Stop (broker)" : "Stop", $"{stop:0.00} ({(stop - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Down));
 		_rows.Add(new PanelRow("Target", $"{e.TargetPrice:0.00} ({(e.TargetPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Up));
 
 		if (_s.ProtectAtPct > 0)
 		{
 			var trigger = e.EntryPrice + (e.TargetPrice - e.EntryPrice) * _s.ProtectAtPct / 100m;
-			_rows.Add(e.ProtectOn
+			_rows.Add(e.ProtectOn || live && _liveProtectOn
 				? new PanelRow("Protect", $"ON - trailing {_s.ProtectPullbackTicks}t", Palette.Up)
 				: new PanelRow("Protect", $"at {trigger:0.00} ({_s.ProtectAtPct:0}%)", Palette.Muted));
 		}
