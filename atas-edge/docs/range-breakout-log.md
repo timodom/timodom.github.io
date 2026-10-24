@@ -146,6 +146,10 @@ tick values; on NQ 6t is about 1.5 points. The results above use them as they ar
 tested: keep 6t, see "NQ Protect settings"). A tick-based
 max range also drifts as NQ's price rises; a limit relative to recent daily range would not.
 
+**Confirmed on the ATAS chart (2026-10-24).** Market edition on #NQZ6 15m, NQ profile, max risk
+off, simulation. The dashboard shows 585 trades, 52% win, PF 1.31, +$158,945, avg +$272, max
+drawdown $20,719, identical to the harness.
+
 ### NQ on 5m vs 15m (same 238 days)
 
 `NQ-67797.csv`: NQ continuous 5m, 2025-11-09 .. 2026-10-23 (ATAS caps 5m at ~1 year). It has
