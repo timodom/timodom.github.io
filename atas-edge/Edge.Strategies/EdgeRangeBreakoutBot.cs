@@ -203,6 +203,10 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Display(Name = "IBL color", GroupName = "7. Chart", Order = 640)]
 	public CrossColor LowColor { get; set; } = CrossColor.FromRgb(226, 71, 90);
 
+	[Display(Name = "Previous days IB opacity (0 = hide, 255 = full)", GroupName = "7. Chart", Order = 645)]
+	[Range(0, 255)]
+	public int PastLevelOpacity { get; set; } = 70;
+
 	[Display(Name = "Stop / short color", GroupName = "7. Chart", Order = 650)]
 	public CrossColor StopColor { get; set; } = CrossColor.FromRgb(226, 71, 90);
 
@@ -796,7 +800,13 @@ public class EdgeRangeBreakoutBot : Indicator
 	private void DrawLevel(RenderContext ctx, IChartContainer c, string name, decimal price, int x1, int x2, CrossColor color, bool label)
 	{
 		var y = c.GetYByPrice(price, false);
-		ctx.DrawLine(new RenderPen(Draw(color), 1, DashStyle.Dash), x1, y, x2, y);
+		// Today full strength; earlier days faded so they read as context, not signals.
+		var alpha = label ? 255 : PastLevelOpacity;
+
+		if (alpha <= 0)
+			return;
+
+		ctx.DrawLine(new RenderPen(Draw(color, alpha), 1, DashStyle.Dash), x1, y, x2, y);
 
 		if (label)
 			ctx.DrawString(name, _tagFont, Draw(color), x2 + 6, y - ctx.MeasureString(name, _tagFont).Height / 2);
