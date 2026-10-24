@@ -15,10 +15,31 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 | Protect exit (engine) | 7/7 synthetic-bar tests pass (`atas-edge/tests/RangeBreakoutEngine.Tests`) |
 | Live entry limit placement | Verified in Market Replay: registers 0.02–0.3 s after the breakout bar closes |
 | Live order handling after the 2026-10-23 incident fix (`f81d05b`) | **Not yet run against an account.** Audit a Replay session before any live use |
-| Edge: an actual edge | **Not shown.** Two small samples were negative (13 trades PF 0.75–1.00; 11 trades PF 0.12) |
+| Edge: an actual edge | **Not shown.** 200-day backtest: 53 trades, PF 0.88, −$2,587; no tested variant clearly better (see Backtest 2026-10-24) |
 
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
+
+## Backtest 2026-10-24 (ES 5m, 200 days loaded, ATAS simulation)
+
+Run in ATAS on the normal feed (not Replay), one setting changed at a time from the defaults.
+Max drawdown is peak-to-trough of cumulative simulated P&L, commissions included.
+
+| Test | Change from defaults | Trades | Win % | PF | Net | Max DD |
+|---|---|---|---|---|---|---|
+| Baseline | none (max range 80, opposite-edge stop, 1.5R, Protect 80%) | 53 | 42% | 0.88 | −$2,587 | $9,017 |
+| A | Max range 40 | 10 | 50% | 1.08 | +$148 | $1,429 |
+| B | Target 1.0R | 53 | 47% | 0.77 | −$4,437 | $8,237 |
+| C | Delta filter on | 47 | 43% | 0.89 | −$2,001 | $8,302 |
+| D | Protect off | 53 | 40% | 0.90 | −$2,150 | $10,067 |
+| E | Midpoint stop | 70 | 36% | 0.78 | −$4,755 | $6,881 |
+
+**Reading.** No variant shows an edge. Baseline is just under break-even on win rate (~42% needed
+at 1.5R after costs) and its drawdown is 18× the $500 daily cap. A (max 40) is the only positive
+row but leaves 10 trades in ~140 sessions because most 09:30–09:45 ES ranges in this period were
+wider than 40 ticks — too few to mean anything. B and E trade risk for hit rate and lose more.
+C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
+Trading was left OFF.
 
 ## Install
 
