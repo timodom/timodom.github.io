@@ -125,7 +125,7 @@ public class EdgeRangeBreakoutBot : ChartStrategy
 	public bool UseVwap { get => _s.UseVwap; set { _s.UseVwap = value; RecalculateValues(); } }
 
 	[Display(Name = "Stop", GroupName = "4. Exits", Order = 300)]
-	public RangeStop Stop { get => _s.Stop; set { _s.Stop = value; RecalculateValues(); } }
+	public RangeStop StopMode { get => _s.Stop; set { _s.Stop = value; RecalculateValues(); } }
 
 	[Display(Name = "Stop ticks (Fixed mode / fallback)", GroupName = "4. Exits", Order = 310)]
 	[Range(1, 10000)]
