@@ -16,6 +16,8 @@
     <Compile Include="..\Edge.Indicators\GlobalUsings.cs" Link="Shared\GlobalUsings.cs" />
     <Compile Include="..\Edge.Indicators\Core\BarMath.cs" Link="Shared\BarMath.cs" />
     <Compile Include="..\Edge.Indicators\Core\DragPanel.cs" Link="Shared\DragPanel.cs" />
+    <Compile Include="..\Edge.Indicators\Core\Calcs.cs" Link="Shared\Calcs.cs" />
+    <Compile Include="..\Edge.Indicators\Core\RangeBreakoutEngine.cs" Link="Shared\RangeBreakoutEngine.cs" />
   </ItemGroup>
 
   <ItemGroup>
