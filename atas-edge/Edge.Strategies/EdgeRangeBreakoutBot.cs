@@ -60,6 +60,8 @@ public class EdgeRangeBreakoutBot : Indicator
 	private Order _targetOrder;
 	private string _lastBarEt = "-";
 	private string _lastEvent = "-";
+	private int _pendingDir;
+	private decimal _riskTicks;
 
 	#endregion
 
@@ -241,6 +243,7 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private void OnPendingPlaced(int bar, int dir, decimal price)
 	{
+		_pendingDir = dir;
 		_lastEvent = $"Retest {(dir > 0 ? "buy" : "sell")} limit {price}";
 
 		if (IsLive)
@@ -260,6 +263,8 @@ public class EdgeRangeBreakoutBot : Indicator
 		else
 			_shortEntry[bar] = price;
 
+		// Initial risk, kept so R still means something after the stop moves to breakeven.
+		_riskTicks = InstrumentInfo.TickSize > 0 ? Math.Abs(price - stop) / InstrumentInfo.TickSize : 0;
 		_lastEvent = $"{(dir > 0 ? "Long" : "Short")} {price}";
 
 		// Immediate entries are decided on the bar close; send them now. Retest fills already
@@ -474,6 +479,12 @@ public class EdgeRangeBreakoutBot : Indicator
 		if (e.State is not (RangeDayState.Waiting or RangeDayState.Building))
 			_rows.Add(new PanelRow("Range", $"{e.Low} - {e.High} ({(e.High - e.Low) / InstrumentInfo.TickSize:N0}t)", Palette.Muted));
 
+		if (e.State == RangeDayState.Pending)
+			_rows.Add(new PanelRow("Retest limit", $"{(_pendingDir > 0 ? "Buy" : "Sell")} {e.PendingPrice:0.00}", Palette.Of(_pendingDir)));
+
+		if (e.State == RangeDayState.InTrade)
+			AddTradeRows(e);
+
 		if (_liveTrading)
 			_rows.Add(new PanelRow("Position", CurrentPosition.ToString("N0"), Palette.Of(CurrentPosition)));
 
@@ -487,6 +498,21 @@ public class EdgeRangeBreakoutBot : Indicator
 		_rows.Add(new PanelRow("Max drawdown", e.MaxDrawdown.ToString("N0"), e.MaxDrawdown > 0 ? Palette.Down : Palette.Muted));
 
 		_dashboard.Render(context, Container.Region, "Edge Range Breakout Bot", _rows);
+	}
+
+	private void AddTradeRows(RangeBreakoutEngine e)
+	{
+		var tick = InstrumentInfo.TickSize;
+		var last = GetCandle(CurrentBar - 1).Close;
+		var ticks = e.Direction * (last - e.EntryPrice) / tick;
+		var dollars = ticks * _s.TickValue * _s.Contracts;
+		var r = _riskTicks > 0 ? ticks / _riskTicks : 0;
+
+		_rows.Add(new PanelRow("Side", $"{(e.Direction > 0 ? "LONG" : "SHORT")} {_s.Contracts}", Palette.Of(e.Direction)));
+		_rows.Add(new PanelRow("Entry", e.EntryPrice.ToString("0.00"), Palette.Muted));
+		_rows.Add(new PanelRow("Stop", $"{e.StopPrice:0.00} ({(e.StopPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Down));
+		_rows.Add(new PanelRow("Target", $"{e.TargetPrice:0.00} ({(e.TargetPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Up));
+		_rows.Add(new PanelRow("Open P&L", $"{ticks:+0;-0;0}t  {dollars:+$#,0;-$#,0;$0}  {r:+0.00;-0.00;0.00}R", Palette.Of(ticks)));
 	}
 
 	public override bool ProcessMouseDown(RenderControlMouseEventArgs e) =>
