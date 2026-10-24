@@ -11,7 +11,7 @@ Clean-room ATAS (C#) versions of the six HolyGrailAlgo NinjaTrader tools. HGA do
 | Channel Breaks | `Edge Channel Breaks` | Uses a Donchian channel. Breakouts need above-average volume and delta in the breakout direction. Fades need a wick through the channel edge and a close back inside. Choose Breakouts, Fades or Both. The dashboard shows distance to the channel edges. |
 | Strength | `Edge Strength` | Band **color** shows direction and force (smoothed RSI). Band **width** shows trend efficiency, so it widens in clean trends and narrows in chop. Bull/Bear prints mark confirmed swings that were RSI-extreme or RSI-divergent. The dashboard shows RSI, strength and efficiency. |
 
-**New: `Edge Range Breakout Bot`** (strategy): an opening range / initial balance breakout bot for ES on 5-minute bars. With live trading off (the default) it simulates trades and shows backtest stats. With it on, it places real orders, each with a stop and a target resting at the broker. Spec: `docs/range-breakout-spec.md`.
+**New: `Edge Range Breakout Bot`**: an opening range / initial balance breakout bot for ES on 5-minute bars. With live trading off (the default) it simulates trades and shows backtest stats. With it on, it places real orders, each with a stop and a target resting at the broker. It's built on `Indicator` (ATAS 8 has no UI for `ChartStrategy`), so it appears in the Indicators list. Spec: `docs/range-breakout-spec.md`. Status, changelog and open items: `docs/range-breakout-log.md`.
 
 All panels can be dragged with the mouse, and their position is saved with the chart template. Every signal has an optional ATAS alert.
 
@@ -24,7 +24,7 @@ cd atas-edge\Edge.Indicators && dotnet build -c Release
 cd ..\Edge.Strategies && dotnet build -c Release
 ```
 
-The build copies the DLLs to `Documents\ATAS\Indicators` and `Documents\ATAS\Strategies`. Restart ATAS, then add the tools from the **Edge** category. If ATAS isn't installed in the default folder, pass `-p:ATAS_BASE="D:\path\to\ATAS"`.
+The build copies the DLLs to `Documents\ATAS\Indicators` and `Documents\ATAS\Strategies`; the strategy project also copies to `%APPDATA%\ATAS\Indicators`, which is where ATAS 8 loads custom DLLs from. Restart ATAS (or reload indicators), then add the tools from the **Edge** category. If ATAS isn't installed in the default folder, pass `-p:ATAS_BASE="D:\path\to\ATAS"`.
 
 ## How signals avoid repainting
 
@@ -48,6 +48,9 @@ Edge.Indicators/
   Edge*.cs                   One file per tool (visual output and settings only)
 Edge.Strategies/
   EdgeTrailManager.cs        Execution and risk (links the Core files in at compile time)
+  EdgeRangeBreakoutBot.cs    Range breakout bot: chart, dashboard, live orders (engine in Core/RangeBreakoutEngine.cs)
+tests/
+  RangeBreakoutEngine.Tests  Synthetic-bar checks for the engine (dotnet run, no ATAS needed)
 ```
 
 Calculation lives in `Core/` and display lives in the indicator files. That way Signals reuses the exact Trend Band and CVD math, and you don't need those indicators loaded on the chart.

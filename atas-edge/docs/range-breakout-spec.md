@@ -1,6 +1,6 @@
 # Range Breakout Engine — Build Spec
 
-**Status:** Built as `Edge.Strategies/EdgeRangeBreakoutBot.cs` on top of `Core/RangeBreakoutEngine.cs`. Trade logic, the no-orders-during-history guard and the live order flow were tested on synthetic ES bars with a mocked ATAS. Not yet compiled against real ATAS or run on a sim account.
+**Status:** Built as `Edge.Strategies/EdgeRangeBreakoutBot.cs` on top of `Core/RangeBreakoutEngine.cs`. Compiles and runs in ATAS 8.0.15; simulation and chart verified on the owner's PC. Live order handling was rewritten after a Replay-account incident and still needs a Replay audit before live use. See `range-breakout-log.md`.
 **Platform:** ATAS (C#), `ChartStrategy`. Lives in `atas-edge/`, reuses `Core/` and `EdgeTrailManager` logic.
 **Market:** ES (E-mini S&P 500), 5-minute chart, intraday only. Tick 0.25 = $12.50.
 
