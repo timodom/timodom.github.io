@@ -63,8 +63,15 @@ which inflates t a little.
 | | NQ | MNQ |
 |---|---|---|
 | Min range | 32 ticks (never binds; smallest opening range seen 56t) | 32 ticks |
-| **Max range** | **600 ticks** (150 pts, max stop ≈ $3,000/contract) | **600 ticks** (max stop ≈ $300) |
-| **Daily loss cap** | **$1,500** (half a max-size loss, as ES's $500 is to its 80t ≈ $1,000) | **$150** |
+| **Max range** | **600 ticks** (150 pts) | **600 ticks** |
+| **Daily loss cap** | **$1,500** (about half a large loss, as ES's $500 is to its 80t ≈ $1,000) | **$150** |
+
+**Actual loss per stopped trade** (the stop is the far side of the range, but entry is the
+breakout bar's close, which can be well beyond the range edge, so the loss can exceed the range).
+On 1 MNQ at 600t: median $208, 1 in 10 worse than $332, worst $501 (NQ: ×10). These losses grow with
+the ranges: the median was $174 in 2024 and is $274 in 2026. The daily cap only blocks new entries;
+it never cuts an open trade, so the worst day was one full stop ($501 MNQ). Second trades
+after a loss are rare: a cap that stops after any loss gives the same PF 1.30 / t 2.7 / max DD.
 
 Why 600t: the plateau where results stay steady is 500–700t (PF 1.31–1.38, max DD $19–24k, every
 year positive). 600t is its middle. At 800t and above, drawdown roughly doubles ($41–65k) for no
