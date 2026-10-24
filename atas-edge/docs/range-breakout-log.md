@@ -20,6 +20,75 @@ Rules live in `range-breakout-spec.md`; this file tracks the work.
 **Do not run Live Trading on a real or shared account** until a Replay session on a non-skipped
 day has been audited (see "Replay audit" below).
 
+## NQ test
+
+**Data.** `NQ-67287.csv`: NQ continuous 15m, 2023-12-17 .. 2026-10-23, 709 RTH days, the same
+span as ES run 4. It has real volume in every month, 66,547 of 67,286 gaps are 15 minutes and
+the rest are the daily break and weekends. Harness: `--tick-value 5 --commission 4 --min-range 32`,
+validated setup (ORB-15, **Entry = Immediate**, all other defaults). "Recent" = `--from 2025-11-09`
+(last ~11 months, the stretch ES runs 1–3 had already seen); "earlier" = the 471 days before it.
+
+**NQ ranges grew a lot.** NQ went from ~16,800 to ~29,000, and the 09:30 15m range grew with it.
+The median was 229 ticks in H1 2024 and is 525–570 ticks in 2026; on ES 80t covered most days.
+A fixed tick limit therefore trades less and less as price rises (see open items).
+
+**Max range sweep** (1 NQ, daily cap $1,500 unless stated; t ≥ 2 ≈ unlikely to be luck):
+
+| Max range | All 709 days: trades / win / PF / net / max DD / t | Train / test PF | Earlier 471 days: PF / t | **Recent 238 days**: trades / PF / net / t |
+|---|---|---|---|---|
+| 400t | 415 / 53% / 1.46 / +$134,180 / $19,537 / 3.4 ($2k cap) | 1.46 / 1.45 | 1.44 / – | 68 / 1.53 / +$30,573 / – |
+| 500t | 509 / 53% / 1.38 / +$153,714 / $18,613 / 3.1 | 1.42 / 1.23 | 1.46 / 3.3 | 102 / 1.16 / +$17,317 / 0.7 |
+| **600t** | **585 / 52% / 1.31 / +$158,945 / $20,719 / 2.8** | **1.30 / 1.32** | **1.36 / 2.8** | **148 / 1.21 / +$35,078 / 1.0** |
+| 700t | 627 / 52% / 1.32 / +$183,402 / $23,876 / 3.0 | 1.25 / 1.50 | 1.30 / 2.4 | 178 / 1.36 / +$72,658 / 1.8 |
+| 800t | 660 / 52% / 1.26 / +$167,460 / $41,191 / 2.5 | 1.21 / 1.38 | 1.28 / – | 200 / 1.24 / +$57,330 / 1.3 |
+| 1000t | 700 / 52% / 1.29 / +$199,375 / $51,947 / 2.8 ($2k cap) | 1.30 / 1.27 | 1.33 / – | 224 / 1.22 / +$61,524 / – |
+| none | 712 / 52% / 1.26 / +$190,617 / $64,931 / 2.5 ($2k cap) | 1.32 / 1.16 | 1.36 / – | 232 / 1.13 / +$38,992 / – |
+
+- **Daily loss cap barely matters.** With max 2 trades a day it only decides whether a second
+  trade follows a big loss. Over $1,000 / $2,000 / $3,000 / $4,000 / no cap, PF moves by ≤ 0.03
+  and net by a few % at every max range.
+- **Every calendar year is positive** at 600t: 2024 PF 1.27, 2025 PF 1.35, 2026 PF 1.31 (also at 700t).
+- **Slippage** of 1 tick per side ($10 per NQ trade) costs ~$5.9k on 585 trades: PF 1.31 → 1.29, t 2.7.
+- Unlike ES, the **retest** entry does not lose on NQ over 3 years (600t: PF 1.22). It does lose
+  in the recent stretch (PF 0.98), and immediate beats it in every slice.
+
+**Verdict: ORB-15 immediate holds on NQ**, by the same bar as ES. Over 3 years PF is 1.31 and
+t 2.8 (ES: 1.30 / 2.6). It is positive in train and in test, and positive in both the earlier
+471 days (t 2.8) and the recent 11 months. The recent 11 months on their own are positive but
+**not statistically meaningful** (t 1.0, 148 trades). About 15 range/cap variants were tried,
+which inflates t a little.
+
+**Recommended NQ / MNQ settings** (all other settings = the validated ES setup):
+
+| | NQ | MNQ |
+|---|---|---|
+| Min range | 32 ticks (never binds; smallest opening range seen 56t) | 32 ticks |
+| **Max range** | **600 ticks** (150 pts, max stop ≈ $3,000/contract) | **600 ticks** (max stop ≈ $300) |
+| **Daily loss cap** | **$1,500** (half a max-size loss, as ES's $500 is to its 80t ≈ $1,000) | **$150** |
+
+Why 600t: the plateau where results stay steady is 500–700t (PF 1.31–1.38, max DD $19–24k, every
+year positive). 600t is its middle. At 800t and above, drawdown roughly doubles ($41–65k) for no
+gain in PF. 700t looked best in the recent stretch, but it sits next to that cliff, so 600t is the
+robust choice. 700t is a fair alternative if the owner wants more trades in today's bigger ranges.
+
+**Expected results at the recommended settings** (3 years, 709 sessions, $4 RT commission per
+contract, no slippage):
+
+| | Trades | Win | PF | Net | Worst drawdown | t |
+|---|---|---|---|---|---|---|
+| 1 NQ | 585 | 52% | 1.31 | +$158,945 | $20,719 | 2.8 |
+| 1 MNQ (≈ (NQ + $4 × trades) / 10 − $1 × trades) | 585 | 52% | 1.30 | +$15,544 | $2,088 | 2.7 |
+| 1 MNQ, recent 11 months only | 148 | 51% | 1.20 | +$3,419 | $2,088 | 1.0 |
+
+Plain reading: in about half its trades the bot wins, and winners are ~1.3× the size of losers.
+On 1 MNQ that made ~$15.5k over 3 years, with a worst peak-to-valley dip of ~$2.1k. A run that
+good is unlikely to be luck over the full 3 years. The last 11 months alone are too short to
+prove anything, but they are positive.
+
+**Not tuned for NQ (open):** Protect pullback 6t and the breakeven/retest offsets are ES-sized
+tick values; on NQ 6t is about 1.5 points. The results above use them as they are. A tick-based
+max range also drifts as NQ's price rises; a limit relative to recent daily range would not.
+
 ## Backtest 2026-10-24 (ES 5m, 200 days loaded, ATAS simulation)
 
 Run in ATAS on the normal feed (not Replay), one setting changed at a time from the defaults.
