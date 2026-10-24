@@ -31,6 +31,8 @@
 
   <Target Name="DeployToAtas" AfterTargets="Build" Condition=" '$(OS)' == 'Windows_NT' ">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(USERPROFILE)\Documents\ATAS\Strategies" />
+    <!-- Newer ATAS builds load all custom DLLs (strategies too) from here. -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(APPDATA)\ATAS\Indicators" />
   </Target>
 
 </Project>
