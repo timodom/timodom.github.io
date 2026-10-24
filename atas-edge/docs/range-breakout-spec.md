@@ -36,6 +36,7 @@ References: https://marketplace.atas.net/product/tms-orb · https://einfachtrade
 - Stop: `StopMode` = opposite range edge / range midpoint / fixed ticks.
 - Target: `TargetMode` = R-multiple (default 1.5R) / range-size multiple / fixed ticks.
 - Breakeven and trailing: reuse `EdgeTrailManager` logic.
+- Protect (default on): once price has covered `ProtectAtPct` (80%) of the distance to the target, the stop trails `ProtectPullbackTicks` (6) behind the best price and only moves in the trade's favor. Evaluated on closed bars; if the bar that sets a new best closes back through the new stop, the trade exits at the stop that bar. Live, each move replaces the broker stop at the bar close. Breakeven stands down once Protect is on.
 - `HardCloseTime` (default 15:55 ET): flatten everything. Never hold overnight.
 
 ### 5. Daily risk

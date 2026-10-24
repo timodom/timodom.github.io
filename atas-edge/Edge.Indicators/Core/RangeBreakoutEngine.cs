@@ -31,6 +31,8 @@ public sealed class RangeBreakoutSettings
 	public RangeTarget Target = RangeTarget.RMultiple;
 	public decimal TargetValue = 1.5m;
 	public decimal BreakevenAtR;
+	public decimal ProtectAtPct = 80m;
+	public int ProtectPullbackTicks = 6;
 	public int MaxTrades = 2;
 	public int MaxLosers = 2;
 	public decimal MaxDailyLoss = 500m;
@@ -54,7 +56,8 @@ public sealed class RangeBreakoutEngine
 	private DateTime _day;
 	private decimal _rangeVolume, _pv, _vol, _prevClose, _lastDayClose;
 	private int _rangeBars, _tradesToday, _losersToday, _pendingSince, _lastDayBar;
-	private bool _beDone;
+	private bool _beDone, _protectOn;
+	private decimal _best;
 
 	public RangeBreakoutEngine(RangeBreakoutSettings settings) => _s = settings;
 
@@ -97,6 +100,8 @@ public sealed class RangeBreakoutEngine
 	public decimal TargetPrice { get; private set; }
 
 	public decimal PendingPrice { get; private set; }
+
+	public bool ProtectOn => _protectOn;
 
 	public decimal DayPnl { get; private set; }
 
@@ -276,6 +281,8 @@ public sealed class RangeBreakoutEngine
 		Direction = dir;
 		EntryPrice = price;
 		_beDone = false;
+		_protectOn = false;
+		_best = price;
 
 		StopPrice = _s.Stop switch
 		{
@@ -322,7 +329,9 @@ public sealed class RangeBreakoutEngine
 			return;
 		}
 
-		if (_s.BreakevenAtR > 0 && !_beDone)
+		// Protect owns the stop once on; breakeven measures risk from the current stop and
+		// would pull a locked-in stop back to entry.
+		if (_s.BreakevenAtR > 0 && !_beDone && !_protectOn)
 		{
 			var favorable = Direction > 0 ? k.High - EntryPrice : EntryPrice - k.Low;
 
@@ -333,6 +342,37 @@ public sealed class RangeBreakoutEngine
 				StopMoved?.Invoke(k.Index, StopPrice);
 			}
 		}
+
+		if (_s.ProtectAtPct > 0)
+			Protect(k);
+	}
+
+	// Once price has covered ProtectAtPct of the way to the target, the stop trails
+	// ProtectPullbackTicks behind the best price and only moves in the trade's favor.
+	private void Protect(RangeBar k)
+	{
+		_best = Direction > 0 ? Math.Max(_best, k.High) : Math.Min(_best, k.Low);
+
+		var trigger = EntryPrice + (TargetPrice - EntryPrice) * _s.ProtectAtPct / 100m;
+
+		if (!_protectOn && (Direction > 0 ? _best >= trigger : _best <= trigger))
+			_protectOn = true;
+
+		if (!_protectOn)
+			return;
+
+		var stop = Round(_best - Direction * _s.ProtectPullbackTicks * TickSize);
+
+		if (Direction > 0 ? stop > StopPrice : stop < StopPrice)
+		{
+			StopPrice = stop;
+			StopMoved?.Invoke(k.Index, StopPrice);
+		}
+
+		// The close is the bar's last print, so a close past the new stop means price came
+		// back through it after making the best price.
+		if (Direction > 0 ? k.Close <= StopPrice : k.Close >= StopPrice)
+			Close(k.Index, StopPrice, "Protect");
 	}
 
 	private void Close(int bar, decimal exit, string reason)

@@ -146,6 +146,14 @@ public class EdgeRangeBreakoutBot : Indicator
 	[Range(0, 100)]
 	public decimal BreakevenAtR { get => _s.BreakevenAtR; set { _s.BreakevenAtR = value; RecalculateValues(); } }
 
+	[Display(Name = "Protect at % of target (0 = off)", GroupName = "4. Exits", Order = 350)]
+	[Range(0, 100)]
+	public decimal ProtectAtPct { get => _s.ProtectAtPct; set { _s.ProtectAtPct = value; RecalculateValues(); } }
+
+	[Display(Name = "Protect: pullback allowed (ticks)", GroupName = "4. Exits", Order = 360)]
+	[Range(1, 1000)]
+	public int ProtectPullbackTicks { get => _s.ProtectPullbackTicks; set { _s.ProtectPullbackTicks = value; RecalculateValues(); } }
+
 	[Display(Name = "Max trades per day", GroupName = "5. Risk", Order = 400)]
 	[Range(1, 50)]
 	public int MaxTrades { get => _s.MaxTrades; set { _s.MaxTrades = value; RecalculateValues(); } }
@@ -275,7 +283,7 @@ public class EdgeRangeBreakoutBot : Indicator
 
 	private void OnStopMoved(int bar, decimal stop)
 	{
-		_lastEvent = $"Stop to breakeven {stop}";
+		_lastEvent = $"Stop moved to {stop}";
 
 		if (IsLive && CurrentPosition != 0)
 		{
@@ -512,6 +520,14 @@ public class EdgeRangeBreakoutBot : Indicator
 		_rows.Add(new PanelRow("Entry", e.EntryPrice.ToString("0.00"), Palette.Muted));
 		_rows.Add(new PanelRow("Stop", $"{e.StopPrice:0.00} ({(e.StopPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Down));
 		_rows.Add(new PanelRow("Target", $"{e.TargetPrice:0.00} ({(e.TargetPrice - e.EntryPrice) / tick:+0;-0;0}t)", Palette.Up));
+
+		if (_s.ProtectAtPct > 0)
+		{
+			var trigger = e.EntryPrice + (e.TargetPrice - e.EntryPrice) * _s.ProtectAtPct / 100m;
+			_rows.Add(e.ProtectOn
+				? new PanelRow("Protect", $"ON - trailing {_s.ProtectPullbackTicks}t", Palette.Up)
+				: new PanelRow("Protect", $"at {trigger:0.00} ({_s.ProtectAtPct:0}%)", Palette.Muted));
+		}
 		_rows.Add(new PanelRow("Open P&L", $"{ticks:+0;-0;0}t  {dollars:+$#,0;-$#,0;$0}  {r:+0.00;-0.00;0.00}R", Palette.Of(ticks)));
 	}
 
