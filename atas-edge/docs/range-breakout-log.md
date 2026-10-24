@@ -141,8 +141,9 @@ On 1 MNQ that made ~$15.5k over 3 years, with a worst peak-to-valley dip of ~$2.
 good is unlikely to be luck over the full 3 years. The last 11 months alone are too short to
 prove anything, but they are positive.
 
-**Not tuned for NQ (open):** Protect pullback 6t and the breakeven/retest offsets are ES-sized
-tick values; on NQ 6t is about 1.5 points. The results above use them as they are. A tick-based
+**Not tuned for NQ:** Protect pullback 6t and the breakeven/retest offsets are ES-sized
+tick values; on NQ 6t is about 1.5 points. The results above use them as they are (Protect since
+tested: keep 6t, see "NQ Protect settings"). A tick-based
 max range also drifts as NQ's price rises; a limit relative to recent daily range would not.
 
 ### NQ on 5m vs 15m (same 238 days)
@@ -165,6 +166,32 @@ breakout fires on the first 5-minute close past the range, and on NQ that entry 
 more often. Only one year of 5m exists, so this is not proof that 5m can never work. It is
 clear enough to keep the market edition's NQ 15m-only lock, and to keep the in-house edition off
 NQ 5m charts.
+
+### NQ Protect settings (15m, 3 years)
+
+Scratch copy of the harness with Protect exposed as options; the repo harness was not changed.
+At the defaults it reproduces 585 / PF 1.31 / +$158,945 exactly. NQ profile, 1 NQ.
+
+| Protect | Trades | Win | PF | Net | Max DD | t | Train / test PF |
+|---|---|---|---|---|---|---|---|
+| Off | 585 | 50% | 1.25 | +$130,520 | $28,774 | 2.3 | 1.24 / 1.26 |
+| **At 80%, pullback 6t (default)** | 585 | 52% | **1.31** | +$158,945 | **$20,719** | 2.8 | 1.30 / 1.32 |
+| At 80%, pullback 12t | 585 | 52% | 1.30 | +$154,685 | $20,809 | 2.7 | 1.29 / 1.32 |
+| At 80%, pullback 20t | 585 | 52% | 1.29 | +$149,005 | $20,929 | 2.6 | 1.28 / 1.31 |
+| At 80%, pullback 30t | 585 | 52% | 1.28 | +$142,720 | $21,079 | 2.5 | 1.27 / 1.30 |
+| At 80%, pullback 40t | 585 | 52% | 1.27 | +$139,660 | $21,229 | 2.5 | 1.26 / 1.29 |
+| At 80%, pullback 60t | 585 | 52% | 1.26 | +$133,800 | $21,504 | 2.4 | 1.25 / 1.28 |
+| At 80%, pullback 80t | 585 | 52% | 1.25 | +$127,345 | $21,704 | 2.3 | 1.24 / 1.27 |
+| At 60%, pullback 30t | 589 | 57% | 1.35 | +$165,124 | $21,969 | 3.2 | 1.37 / 1.28 |
+| At 70%, pullback 30t | 586 | 55% | 1.31 | +$156,346 | $22,274 | 2.9 | 1.35 / 1.23 |
+| At 90%, pullback 30t | 585 | 51% | 1.24 | +$128,655 | $28,649 | 2.2 | 1.24 / 1.25 |
+
+**Verdict: keep the defaults on NQ.** Protect earns its place: switched off, PF falls to 1.25 and
+drawdown rises to $28.8k. The ES-sized 6t pullback is not a handicap on NQ. Every wider pullback
+does a little worse, step by step, because on 15m bars Protect mostly locks in the gain at the bar
+close. An earlier trigger (60%) looks better over the 3 years but worse in the test third
+(1.28 vs 1.32), which is the pattern of a fit to past data, not an improvement. Closes the
+"Protect pullback not tuned for NQ" open item.
 
 ## Backtest 2026-10-24 (ES 5m, 200 days loaded, ATAS simulation)
 
