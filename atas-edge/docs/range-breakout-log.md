@@ -125,6 +125,27 @@ prove anything, but they are positive.
 tick values; on NQ 6t is about 1.5 points. The results above use them as they are. A tick-based
 max range also drifts as NQ's price rises; a limit relative to recent daily range would not.
 
+### NQ on 5m vs 15m (same 238 days)
+
+`NQ-67797.csv`: NQ continuous 5m, 2025-11-09 .. 2026-10-23 (ATAS caps 5m at ~1 year). It has
+real volume every month and 67,545 of 67,796 gaps are 5 minutes. Compared with the 15m file over
+the same days (`--from 2025-11-09`). NQ profile: min 32t, max 600t, cap $1,500, 1 NQ, $4 RT.
+
+| 1 NQ, 238 days | Trades | Win | PF | Net | Max DD | t | Train / test PF |
+|---|---|---|---|---|---|---|---|
+| **15m** ORB-15 immediate | 148 | 51% | **1.21** | **+$35,078** | **$20,719** | 1.0 | 1.27 / 1.05 |
+| 5m ORB-15 immediate | 153 | 48% | 1.04 | +$6,713 | $38,228 | 0.2 | 1.08 / 0.94 |
+| 15m, max risk $2,000 | 31 | 52% | 1.71 | +$13,076 | $4,135 | 1.4 | 1.82 / 1.35 |
+| 5m, max risk $2,000 | 43 | 44% | 1.19 | +$6,278 | $12,541 | 0.5 | 1.78 / 0.29 |
+| 5m retest (code default) | 134 | 47% | 1.02 | +$3,539 | $25,088 | 0.1 | 1.06 / 0.94 |
+
+**Verdict: run NQ on 15m only.** On 5m the same rules roughly break even, drawdown nearly
+doubles, and the test third loses. This is unlike ES, where 5m held up (run 3: PF 1.31). On 5m the
+breakout fires on the first 5-minute close past the range, and on NQ that entry gets shaken out
+more often. Only one year of 5m exists, so this is not proof that 5m can never work. It is
+clear enough to keep the market edition's NQ 15m-only lock, and to keep the in-house edition off
+NQ 5m charts.
+
 ## Backtest 2026-10-24 (ES 5m, 200 days loaded, ATAS simulation)
 
 Run in ATAS on the normal feed (not Replay), one setting changed at a time from the defaults.
