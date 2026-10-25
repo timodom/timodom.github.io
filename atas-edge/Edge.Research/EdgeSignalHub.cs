@@ -26,6 +26,9 @@ using ZeroDay.Shared;
 [Category("Edge")]
 public class EdgeSignalHub : Indicator
 {
+	// AddAlert's first argument is the ATAS sound to play, not a source label.
+	private const string AlertSound = "alert1";
+
 	private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
 	private static readonly TimeZoneInfo Eastern = FindEastern();
 
@@ -56,13 +59,13 @@ public class EdgeSignalHub : Indicator
 				var result = WebhookStore.Save(WebhookStore.DefaultPath, value);
 
 				if (result == WebhookStore.SaveResult.Rejected)
-					AddAlert("EdgeSignalHub", "That is not a Discord webhook URL. Nothing was saved.");
+					AddAlert(AlertSound, "That is not a Discord webhook URL. Nothing was saved.");
 				else if (result == WebhookStore.SaveResult.Saved)
-					AddAlert("EdgeSignalHub", $"Webhook {WebhookStore.Mask(WebhookStore.DefaultPath)}. Tick 'Send test post' to check it.");
+					AddAlert(AlertSound, $"Webhook {WebhookStore.Mask(WebhookStore.DefaultPath)}. Tick 'Send test post' to check it.");
 			}
 			catch (Exception ex)
 			{
-				try { AddAlert("EdgeSignalHub", $"Could not save the webhook: {ex.Message}"); } catch { }
+				try { AddAlert(AlertSound, $"Could not save the webhook: {ex.Message}"); } catch { }
 			}
 		}
 	}
@@ -173,7 +176,7 @@ public class EdgeSignalHub : Indicator
 
 		if (_unsupported != null)
 		{
-			AddAlert("EdgeSignalHub", _unsupported);
+			AddAlert(AlertSound, _unsupported);
 			return;
 		}
 
@@ -181,7 +184,7 @@ public class EdgeSignalHub : Indicator
 		_claimed = HubClaim.TryClaim(_family, this);
 
 		if (!_claimed)
-			AddAlert("EdgeSignalHub", $"Another Edge Signal Hub already posts {_family} signals. This one stays silent.");
+			AddAlert(AlertSound, $"Another Edge Signal Hub already posts {_family} signals. This one stays silent.");
 
 		_core = new HubCore(_profile, InstrumentInfo.TickSize, TimeSpan.FromMinutes(15));
 		Log($"Started on {InstrumentInfo?.Instrument} 15m, profile {_profile.Name}, posting {(PostToDiscord ? "ON" : "off")}.");
@@ -238,7 +241,7 @@ public class EdgeSignalHub : Indicator
 
 		try
 		{
-			AddAlert("EdgeSignalHub", $"Discord delivery failed: {why}");
+			AddAlert(AlertSound, $"Discord delivery failed: {why}");
 		}
 		catch
 		{
