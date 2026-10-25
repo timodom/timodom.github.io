@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using Edge.Atas.Core;
 using Edge.Atas.Hub;
 
+if (args.Length > 1 && args[0] == "--replay")
+	return Replay.Run(args);
+
 int fails = 0;
 void Check(string name, bool ok, string detail) { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name}  {detail}"); if (!ok) fails++; }
 void Eq(string name, string actual, string expected) => Check(name, actual == expected, actual == expected ? "" : $"\n   got:  {actual}\n   want: {expected}");
