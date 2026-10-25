@@ -991,13 +991,8 @@ public class OpeningRangeBot : Indicator
 		_chartLabel = $"{symbol} · {minutes:0}m";
 		_unsupported = null;
 
-		// Instrument profiles. ES from the ~3-year ES test, NQ from the NQ test (range-breakout-log.md).
-		(string Name, decimal TickValue, decimal Commission, int MinRange, int MaxRange, decimal DailyLoss)? profile =
-			symbol.StartsWith("MES") ? ("MES", 1.25m, 1m, 8, 80, 50m)
-			: symbol.StartsWith("ES") ? ("ES", 12.5m, 4m, 8, 80, 500m)
-			: symbol.StartsWith("MNQ") ? ("MNQ", 0.5m, 1m, 32, 600, 150m)
-			: symbol.StartsWith("NQ") ? ("NQ", 5m, 4m, 32, 600, 1500m)
-			: null;
+		// Instrument profiles: shared with the Edge Signal Hub (Core/InstrumentProfiles.cs).
+		var profile = InstrumentProfile.Find(symbol);
 
 #if MARKET
 		if (profile is null)
@@ -1015,7 +1010,7 @@ public class OpeningRangeBot : Indicator
 #endif
 
 		// In-house falls back to the ES profile on other symbols; every value can be overridden.
-		var p = profile ?? ("ES defaults", 12.5m, 4m, 8, 80, 500m);
+		var p = profile ?? InstrumentProfile.EsDefaults;
 		_profile = p.Name;
 		_s.TickValue = _userTickValue > 0 ? _userTickValue : p.TickValue;
 		_s.Commission = _userCommission > 0 ? _userCommission : p.Commission;
