@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Console harness for the Edge Signal Hub's pure parts. No ATAS needed.
+       Unit checks: dotnet run, pointing the project option at this folder. Exit code = number of failures.
+       Replay: pass the replay option and an Edge Bar Export CSV; usage is in Replay.cs. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Edge.Research\Hub\SignalFormatter.cs" Link="SignalFormatter.cs" />
+  </ItemGroup>
+
+</Project>
