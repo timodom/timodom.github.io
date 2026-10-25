@@ -14,6 +14,8 @@ using ATAS.Indicators;
 using Edge.Atas.Core;
 using Edge.Atas.Hub;
 
+using OFT.Attributes.Editors;
+
 using ZeroDay.Shared;
 
 /// <summary>
@@ -95,6 +97,21 @@ public class EdgeSignalHub : Indicator
 		}
 	}
 
+	[Display(Name = "Play sounds", GroupName = "3. Sounds", Order = 10)]
+	public bool PlaySounds { get; set; } = true;
+
+	[Display(Name = "Get ready (range set)", GroupName = "3. Sounds", Order = 20)]
+	[SoundComboBoxEditor]
+	public string SoundGetReady { get; set; } = "alert1";
+
+	[Display(Name = "Trade opened", GroupName = "3. Sounds", Order = 30)]
+	[SoundComboBoxEditor]
+	public string SoundOpened { get; set; } = "alert2";
+
+	[Display(Name = "Trade closed or stopped", GroupName = "3. Sounds", Order = 40)]
+	[SoundComboBoxEditor]
+	public string SoundClosed { get; set; } = "alert3";
+
 	public EdgeSignalHub()
 	{
 		DenyToChangePanel = true;
@@ -148,6 +165,34 @@ public class EdgeSignalHub : Indicator
 
 			if (PostToDiscord && _claimed)
 				Enqueue(SignalFormatter.WithFooter(m.Text));
+
+			PlaySound(m);
+		}
+	}
+
+	// Live events only (HubCore returns nothing for history), and only on the hub that holds the claim.
+	private void PlaySound(HubMessage m)
+	{
+		if (!PlaySounds || !_claimed)
+			return;
+
+		var sound = m.Kind switch
+		{
+			HubEvent.RangeSet => SoundGetReady,
+			HubEvent.Entry => SoundOpened,
+			HubEvent.Exit => SoundClosed,
+			_ => null
+		};
+
+		if (string.IsNullOrWhiteSpace(sound))
+			return;
+
+		try
+		{
+			AddAlert(sound, m.Text);
+		}
+		catch
+		{
 		}
 	}
 
