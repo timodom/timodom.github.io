@@ -10,8 +10,17 @@
     <RootNamespace>Edge.Atas</RootNamespace>
     <AssemblyName>Edge.Atas.Research</AssemblyName>
     <ATAS_BASE Condition=" '$(ATAS_BASE)' == '' ">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CS8632</NoWarn>
+    <!-- Private zerodaytrade-bots checkout, for the shared Discord pacer. Override with -p:ZDT_BOTS=... -->
+    <ZDT_BOTS Condition=" '$(ZDT_BOTS)' == '' ">$(USERPROFILE)\Documents\zerodaytrade-bots</ZDT_BOTS>
   </PropertyGroup>
+
+  <!-- Signal hub: the bot's engine and profiles, and the shared Discord queue. Linked, never copied. -->
+  <ItemGroup>
+    <Compile Include="..\Edge.Indicators\Core\RangeBreakoutEngine.cs" Link="Shared\RangeBreakoutEngine.cs" />
+    <Compile Include="..\Edge.Indicators\Core\InstrumentProfiles.cs" Link="Shared\InstrumentProfiles.cs" />
+    <Compile Include="$(ZDT_BOTS)\shared\DiscordPacer.cs" Link="Shared\DiscordPacer.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="ATAS.Indicators"><HintPath>$(ATAS_BASE)\ATAS.Indicators.dll</HintPath><Private>false</Private></Reference>
