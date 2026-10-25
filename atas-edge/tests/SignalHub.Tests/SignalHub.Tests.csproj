@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\Edge.Research\Hub\SignalFormatter.cs" Link="SignalFormatter.cs" />
+    <Compile Include="..\..\Edge.Research\Hub\WebhookStore.cs" Link="WebhookStore.cs" />
   </ItemGroup>
 
 </Project>

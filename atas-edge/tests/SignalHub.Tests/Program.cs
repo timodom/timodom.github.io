@@ -26,6 +26,20 @@ Eq("footer", SignalFormatter.WithFooter("x"), "x\n*Model signal, simulated, not 
 Eq("payload with name", SignalFormatter.Payload("Name", "a \"b\"\nc"), "{\"username\":\"Name\",\"content\":\"a \\\"b\\\"\\nc\"}");
 Eq("payload without name", SignalFormatter.Payload("", "x"), "{\"content\":\"x\"}");
 
+// ---------- WebhookStore ----------
+var hookPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hub-test-{Guid.NewGuid():N}", "hook.txt");
+const string fakeHook = "https://discord.com/api/webhooks/123/abcdEFGHwxyz";
+Check("unset reads empty", WebhookStore.Read(hookPath) == "", "");
+Check("unset masks as 'not set'", WebhookStore.Mask(hookPath) == "not set", WebhookStore.Mask(hookPath));
+Check("blank ignored", WebhookStore.Save(hookPath, "  ") == WebhookStore.SaveResult.Ignored, "");
+Check("not a webhook rejected", WebhookStore.Save(hookPath, "https://example.com/x") == WebhookStore.SaveResult.Rejected, "");
+Check("paste saved", WebhookStore.Save(hookPath, "  " + fakeHook + " ") == WebhookStore.SaveResult.Saved, "");
+Check("read back trimmed", WebhookStore.Read(hookPath) == fakeHook, WebhookStore.Read(hookPath));
+Check("mask shows last 4 only", WebhookStore.Mask(hookPath) == "saved (…wxyz)", WebhookStore.Mask(hookPath));
+Check("restoring the mask is ignored", WebhookStore.Save(hookPath, "saved (…wxyz)") == WebhookStore.SaveResult.Ignored && WebhookStore.Read(hookPath) == fakeHook, "");
+Check("discordapp.com accepted", WebhookStore.Save(hookPath, "https://discordapp.com/api/webhooks/9/zz12") == WebhookStore.SaveResult.Saved, "");
+System.IO.Directory.Delete(System.IO.Path.GetDirectoryName(hookPath), true);
+
 // ---- end of checks ----
 Console.WriteLine(fails == 0 ? "ALL PASS" : $"{fails} FAILED");
 return fails;
