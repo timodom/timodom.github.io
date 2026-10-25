@@ -170,6 +170,32 @@ open before 10:30, and later breakouts add a few trades at the same PF. The 11:3
 not a turning point. ES improves slightly with a later cut-off (PF 1.30 → 1.33–1.34), which is
 within noise and not worth unlocking the validated setup for.
 
+### Overnight session opens (NQ and ES, 15m, 3 years)
+
+Owner question: does the same ORB-15 immediate setup work overnight, where NQ moves more slowly?
+Scratch harness with range start/end, last entry and hard close exposed. Each session: 15-minute
+opening range, entries for 2 hours, flat by 23:55 (or 09:25 for London). Min range 8t NQ / 4t ES,
+other settings as validated.
+
+| Session (ET) | NQ: trades / win / PF / net / max DD / t | NQ train / test PF | ES: trades / PF / net / t |
+|---|---|---|---|
+| CME open 18:00 | 633 / 50% / 1.21 / +$53,848 / $19,012 / 1.9 | 1.24 / 1.16 | 561 / 1.09 / +$9,594 / 0.8 |
+| Asia 19:00 | 858 / 46% / 1.16 / +$45,438 / $15,412 / 1.7 | 1.15 / 1.18 | 802 / 1.04 / +$4,630 / 0.4 |
+| Asia 20:00 | 735 / 48% / 1.06 / +$16,200 / $17,281 / 0.6 | 1.05 / 1.08 | 719 / 1.00 / −$139 / 0.0 |
+| London 03:00 | 797 / 43% / 0.98 / −$8,873 / $51,968 / −0.3 | 0.85 / 1.21 | 772 / 0.88 / −$22,676 / −1.5 |
+| **NY 09:30 (validated)** | **585 / 52% / 1.31 / +$158,945 / $20,719 / 2.8** | **1.30 / 1.32** | **509 / 1.30 / +$57,314 / 2.6** |
+
+NQ overnight trades are smaller: CME open avg win $992 / avg loss −$825 (worst −$3,249); Asia 19:00
+$835 / −$605 (worst −$4,024); NY $2,210 / −$1,854. After 1 tick slippage per side (overnight
+spreads are wider): CME open PF 1.18, Asia 19:00 PF 1.13, NY 1.29.
+
+**Verdict: no overnight edge proven.** The NY open is the only session that is clearly
+significant on both markets. NQ at the CME open (PF 1.21, t 1.9, positive every year) and at
+19:00 (PF 1.16, t 1.7) are positive, but just short of significant. They are two of ten
+variants tried, and the same rule fails on ES. That is the pattern of a weak or chance effect.
+Overnight losses are smaller (about half), but so is the profit per trade ($85 vs $272). At most,
+NQ CME open is a candidate for a separate forward test. Do not add it to the product.
+
 ### NQ on 5m vs 15m (same 238 days)
 
 `NQ-67797.csv`: NQ continuous 5m, 2025-11-09 .. 2026-10-23 (ATAS caps 5m at ~1 year). It has
