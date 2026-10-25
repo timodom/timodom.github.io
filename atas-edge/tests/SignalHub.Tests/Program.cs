@@ -89,6 +89,21 @@ Eq("live exit after restart", liveExit.Count == 1 ? liveExit[0].Text : Texts(liv
 Check("one range post per day", Feed(NewCore(), true, rangeBar, rangeBar).Count == 1, "");
 Check("engine tick size", NewCore().Engine.TickSize == 0.25m, "");
 
+// ---------- HubClaim ----------
+object hubA = new(), hubB = new();
+Check("family MES -> ES", HubClaim.FamilyOf(InstrumentProfile.Find("MES")) == "ES", "");
+Check("family MNQ -> NQ", HubClaim.FamilyOf(InstrumentProfile.Find("MNQ")) == "NQ", "");
+Check("first hub claims ES", HubClaim.TryClaim("ES", hubA), "");
+Check("same hub may re-claim", HubClaim.TryClaim("ES", hubA), "");
+Check("second hub refused", !HubClaim.TryClaim("ES", hubB), "");
+Check("other family free", HubClaim.TryClaim("NQ", hubB), "");
+HubClaim.Release("ES", hubB);   // not the owner: no effect
+Check("release by non-owner ignored", !HubClaim.TryClaim("ES", hubB), "");
+HubClaim.Release("ES", hubA);
+Check("after release, next hub claims", HubClaim.TryClaim("ES", hubB), "");
+HubClaim.Release("ES", hubB);
+HubClaim.Release("NQ", hubB);
+
 // ---------- WebhookStore ----------
 var hookPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hub-test-{Guid.NewGuid():N}", "hook.txt");
 const string fakeHook = "https://discord.com/api/webhooks/123/abcdEFGHwxyz";

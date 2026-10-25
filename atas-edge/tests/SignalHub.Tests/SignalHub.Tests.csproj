@@ -15,6 +15,7 @@
     <Compile Include="..\..\Edge.Indicators\Core\InstrumentProfiles.cs" Link="InstrumentProfiles.cs" />
     <Compile Include="..\..\Edge.Research\Hub\SignalFormatter.cs" Link="SignalFormatter.cs" />
     <Compile Include="..\..\Edge.Research\Hub\HubCore.cs" Link="HubCore.cs" />
+    <Compile Include="..\..\Edge.Research\Hub\HubClaim.cs" Link="HubClaim.cs" />
     <Compile Include="..\..\Edge.Research\Hub\WebhookStore.cs" Link="WebhookStore.cs" />
   </ItemGroup>
 
