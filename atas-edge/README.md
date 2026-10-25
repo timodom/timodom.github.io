@@ -56,4 +56,6 @@ tests/
 
 Research: export chart bars to CSV and test ideas offline with `Edge Bar Export (research)` and `tests/RangeResearch`. Guide and idea backlog: [`docs/edge-bar-export.md`](docs/edge-bar-export.md).
 
+Signals: `Edge Signal Hub` posts the Opening Range model's events to Discord for members. Guide: [`docs/edge-signal-hub.md`](docs/edge-signal-hub.md).
+
 Calculation lives in `Core/` and display lives in the indicator files. That way Signals reuses the exact Trend Band and CVD math, and you don't need those indicators loaded on the chart.
