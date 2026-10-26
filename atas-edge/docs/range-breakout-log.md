@@ -264,6 +264,34 @@ wider than 40 ticks — too few to mean anything. B and E trade risk for hit rat
 C and D are within noise of baseline. Settings were restored to defaults afterwards and Live
 Trading was left OFF.
 
+## Forward chronological test: build on 2024, freeze, test 2025–26 (2026-10-26)
+
+Asked by an outside reviewer: our earlier held-back data was the *older* period. Here every setting
+is chosen on Dec 2023 – Dec 2024 only, frozen, then run once on Jan 2025 – Oct 2026 (15m continuous).
+Caveat: the rule set was already known when this was run, so it is a reconstruction, not a blind test.
+
+| 2024 picks (build period) | ES | NQ |
+|---|---|---|
+| Entry: immediate vs retest | 1.38 vs 0.86 → immediate | 1.27 vs 1.26 → immediate |
+| Range: 15 vs 30 vs 60 min | 1.38 / 1.11 / 1.13 → 15 | 1.27 / 1.21 / – → 15 |
+| Max range (best PF) | 60t 1.44, 80t 1.38 (plateau 60–80) | 320t 1.54 (plateau 240–400) |
+
+| Frozen test, Jan 2025 – Oct 2026 | Trades | PF | Net | t |
+|---|---|---|---|---|
+| ES immediate, 80t (shipped) | 279 | 1.25 | +$28,347 | 1.6 |
+| ES immediate, 60t (2024's single best) | 186 | 1.05 | +$3,731 | 0.3 |
+| ES retest (rejected) | 185 | 0.99 | −$765 | −0.1 |
+| NQ immediate, 320t (2024's pick) | 111 | 1.49 | +$32,386 | 1.8 |
+| NQ immediate, 400t | 199 | 1.45 | +$68,539 | 2.3 |
+| NQ immediate, 600t (shipped) | 333 | 1.33 | +$107,413 | 2.2 |
+
+**Reading.** The structural choices 2024 would have made (immediate entry, 15-minute range) held
+forward on both markets, and retest stayed a loser on ES. Every frozen configuration is profitable
+forward. But ES forward alone is not statistically significant (t 1.6), and picking ES's single
+best 2024 number (60t) would have nearly washed out (PF 1.05): choose limits from plateaus, never
+peaks. Claim: "rules chosen on 2024 data stayed profitable on 2025–26 for both markets." Do not
+claim: "statistically proven out of sample on ES." The blind test is the live forward simulation.
+
 ## Research run 4 — continuous ES 15m, ~3 years (2023-12-17 .. 2026-10-23), the deciding test
 
 ATAS gave 15-minute history back to 2023-12-17 (709 RTH days). The 471 days before 2025-11-09
