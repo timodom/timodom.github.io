@@ -8,7 +8,7 @@ chart drawing and live order handling are identical; only the settings and safeg
 | Project | `Edge.Strategies` | `Edge.Market` (defines `MARKET`) |
 | DLL | `OpeningRangeBot.InHouse.dll` (also carries Edge Trail Manager) | `OpeningRangeBot.dll` (bot only) |
 | Name in ATAS | Opening Range Bot (in-house) | Opening Range Bot |
-| Storefront name | — | RAIN Opening Range Bot (ES · MES · 15-minute opening range) |
+| Storefront name | — | Opening Range Bot, by ZeroDayTrades (ES · MES · NQ · MNQ) |
 | Order tag in ATAS logs | `OpeningRange <role> #<trade id>` | same |
 | Entry | Setting, **defaults to Immediate** | **Locked to Immediate** (the validated setup) |
 | Range times, cutoffs, range limits, entry options, filters, stop/target types, breakeven, Protect, trade/loser limits | All settings | Hidden, locked at defaults |
@@ -60,11 +60,12 @@ test.
 
 ## Names
 
-Follows the ZeroDayTrades naming rule (2026-08-26): internal names say what the thing does; on the
-storefront RAIN is the house brand and may prefix any product. This bot is not the RAIN footprint
-method and enters immediately (not on a retest), so it is not a "Break & Retest" product. It sits
-beside RAIN Break & Retest Bot as a second automation product. Renamed 2026-10-24 from "Edge Range
-Breakout Bot" / "Edge Bot"; the old DLLs are parked in `%APPDATA%\ATAS\Indicators\_retired-20261024\`.
+Internal names say what the thing does (ZeroDayTrades naming rule, 2026-08-26). The storefront name
+is **Opening Range Bot**, under the ZeroDayTrades brand, **without RAIN**: the owner decided
+(2026-10-25) that this bot is not part of the RAIN system. It is not the RAIN footprint method, and it
+enters immediately rather than on a retest, so it is not a "Break & Retest" product either. Renamed
+2026-10-24 from "Edge Range Breakout Bot" / "Edge Bot"; the old DLLs are parked in
+`%APPDATA%\ATAS\Indicators\_retired-20261024\`.
 Planned: move this code to the private `zerodaytrade-bots` repo as `opening-range/`.
 
 ## Building
