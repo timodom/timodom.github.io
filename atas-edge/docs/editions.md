@@ -15,11 +15,14 @@ chart drawing and live order handling are identical; only the settings and safeg
 | Tick value, commission, min/max range | Settings, **0 = instrument profile** | Set from the instrument profile |
 | Max daily loss | Setting ($, **0 = instrument profile**) | Setting ($, **0 = instrument profile**) |
 | Max risk per trade | Setting ($, 0 = off) | Setting ($, 0 = off) |
-| Contracts, Live Trading, Flatten on stop, UTC checkbox, dashboard, chart colors | Settings | Settings |
+| Mode: **Off** (default, range and IB lines only) / **Backtest** (simulated trades and stats, no orders) / **Live** (real orders; only trades actually sent are drawn) | Setting | Setting |
+| Contracts, Flatten on stop, UTC checkbox, dashboard, chart colors | Settings | Settings |
 | Supported charts | Any (other symbols use the ES profile) | **ES, MES, NQ, MNQ on 5- or 15-minute charts**; anything else shows "Not running" and does nothing |
 | Decision bars | Setting: Auto / Chart bars / 15-minute closes | Auto (locked) |
 
-Both editions show the chart (symbol, bar size and profile) on the dashboard.
+Both editions show the chart (symbol, bar size and profile) on the dashboard. The dashboard title and first line name the mode (OFF / BACKTEST / LIVE).
+A manual close of a live trade is logged as "Manual close"; the bot can still take another breakout that day
+(owner decision 2026-10-28).
 
 **Decision bars (Auto).** NQ/MNQ always decide on 15-minute closes, their validated setup; on a
 5-minute chart the bot groups each three 5m bars into a 15m block (`Core/BarAggregator.cs`) and the

@@ -24,6 +24,15 @@ using OFT.Rendering.Context;
 using OFT.Rendering.Control;
 using OFT.Rendering.Tools;
 
+/// <summary>Off: range and IB lines only. Backtest: simulated history trades and stats. Live: real orders,
+/// and only the trades actually sent are drawn.</summary>
+public enum BotMode
+{
+	[Display(Name = "Off (levels only)")] Off,
+	[Display(Name = "Backtest (simulated, no orders)")] Backtest,
+	[Display(Name = "Live (sends real orders)")] Live
+}
+
 /// <summary>Which bars the strategy decides on; Auto follows the instrument's validated setup.</summary>
 public enum DecisionBars
 {
@@ -67,7 +76,8 @@ public class OpeningRangeBot : Indicator
 	private readonly RenderFont _tagFont = new("Arial", 9, FontStyle.Bold);
 	private readonly RenderFont _labelFont = new("Arial", 9);
 
-	private bool _liveTrading;
+	private BotMode _mode = BotMode.Off;
+	private bool _liveTrading => _mode == BotMode.Live;
 	private bool _chartTimeIsUtc = true;
 	private bool _realtime;
 	private int _lastCalcBar = -1;
@@ -102,14 +112,16 @@ public class OpeningRangeBot : Indicator
 
 	#region Properties
 
-	[Display(Name = "LIVE TRADING (off = simulate only)", GroupName = "0. Mode", Order = 1)]
-	public bool LiveTrading
+	// Replaces the old Live Trading checkbox; charts saved with it start in Off (the safe default).
+	[Display(Name = "Mode", GroupName = "0. Mode", Order = 1)]
+	public BotMode Mode
 	{
-		get => _liveTrading;
+		get => _mode;
 		set
 		{
-			_liveTrading = value;
-			_lastEvent = value ? "Live trading ON" : "Simulation";
+			_mode = value;
+			_lastEvent = value == BotMode.Live ? "Live trading ON" : value == BotMode.Backtest ? "Backtest" : "Off";
+			RecalculateValues();
 		}
 	}
 
@@ -362,7 +374,8 @@ public class OpeningRangeBot : Indicator
 
 	private void OnEntered(int bar, int dir, decimal price, decimal stop, decimal target)
 	{
-		_trades.Add(new TradeMark { EntryBar = bar, Dir = dir, Entry = price, Stop = stop, Target = target });
+		// Real = sent to the account (Live mode with live ticks). Live mode draws only these.
+		_trades.Add(new TradeMark { EntryBar = bar, Dir = dir, Entry = price, Stop = stop, Target = target, Day = _engine.Day, Real = IsLive });
 
 		// Initial risk, kept so R still means something after the stop moves to breakeven.
 		_riskTicks = InstrumentInfo.TickSize > 0 ? Math.Abs(price - stop) / InstrumentInfo.TickSize : 0;
@@ -433,7 +446,7 @@ public class OpeningRangeBot : Indicator
 			if (_engine.State == RangeDayState.InTrade)
 			{
 				var stopHit = FilledOf("stop") > 0;
-				_engine.SyncExternalExit(bar, stopHit ? _brokerStop : FilledOf("target") > 0 ? _engine.TargetPrice : price, stopHit ? "Stop" : "Target");
+				_engine.SyncExternalExit(bar, stopHit ? _brokerStop : FilledOf("target") > 0 ? _engine.TargetPrice : price, stopHit ? "Stop" : FilledOf("target") > 0 ? "Target" : "Manual close");
 			}
 
 			return;
@@ -778,6 +791,8 @@ public class OpeningRangeBot : Indicator
 		public int EntryBar, ExitBar = -1, Dir;
 		public decimal Entry, Stop, Target, Exit, Pnl;
 		public string Reason;
+		public DateTime Day;
+		public bool Real;
 	}
 
 	// Called once per closed bar, after the engine has seen it.
@@ -854,6 +869,10 @@ public class OpeningRangeBot : Indicator
 		for (var i = 0; i < _trades.Count; i++)
 		{
 			var t = _trades[i];
+
+			if (_mode == BotMode.Off || _mode == BotMode.Live && !t.Real)
+				continue;
+
 			var exitBar = t.ExitBar >= 0 ? t.ExitBar : CurrentBar - 1;
 
 			if (exitBar < first || t.EntryBar > last)
@@ -967,6 +986,9 @@ public class OpeningRangeBot : Indicator
 	private const string Title = "Opening Range Bot (in-house)";
 #endif
 
+	// Backtest label colour (the plan blue); live stays red so the two can't be confused.
+	private static readonly Color BacktestBlue = Color.FromArgb(255, 128, 185, 230);
+
 	private static Color Lighten(Color c) => Color.FromArgb(255, (c.R + 255) / 2, (c.G + 255) / 2, (c.B + 255) / 2);
 
 	private DateTime ToEt(DateTime time) =>
@@ -1054,44 +1076,68 @@ public class OpeningRangeBot : Indicator
 			return;
 
 		var e = _engine;
-		var mode = !_liveTrading ? "SIMULATION (no orders)" : _killedForDay ? "LIVE - paused (loss cap)" : _realtime ? "LIVE" : "LIVE - waiting for ticks";
+		var mode = _mode == BotMode.Off ? "OFF - levels only, no trades"
+			: _mode == BotMode.Backtest ? "BACKTEST - simulated, no orders"
+			: _killedForDay ? "LIVE - paused (loss cap)" : _realtime ? "LIVE - real orders" : "LIVE - waiting for ticks";
+		var title = $"{Title} · {(_mode == BotMode.Live ? "LIVE" : _mode == BotMode.Backtest ? "BACKTEST" : "OFF")}";
 
 		_rows.Clear();
-		_rows.Add(new PanelRow("Mode", mode, _liveTrading ? Palette.Down : Palette.Muted));
+		_rows.Add(new PanelRow("Mode", mode, _mode == BotMode.Live ? Palette.Down : _mode == BotMode.Backtest ? BacktestBlue : Palette.Muted));
 		_rows.Add(new PanelRow("Chart", _chartLabel, Palette.Muted));
 
 		if (_unsupported != null)
 		{
 			_rows.Add(new PanelRow("Not running", _unsupported, Palette.Down));
-			_dashboard.Render(context, Container.Region, Title, _rows);
+			_dashboard.Render(context, Container.Region, title, _rows);
 			return;
 		}
 
 		_rows.Add(new PanelRow("Bar time ET", _lastBarEt, Palette.Muted));
-		_rows.Add(new PanelRow("Today", e.State.ToString(), e.State == RangeDayState.InTrade ? Palette.Of(e.Direction) : Palette.Muted));
+		// Off and Live never show a simulated position as if it were a trade.
+		var simTrade = e.State is RangeDayState.InTrade or RangeDayState.Pending;
+		var today = _mode != BotMode.Backtest && simTrade ? "Breakout signal (not traded)" : e.State.ToString();
+		if (_mode == BotMode.Live && NetPosition() != 0)
+			today = "In trade";
+		_rows.Add(new PanelRow("Today", today, e.State == RangeDayState.InTrade && _mode == BotMode.Backtest ? Palette.Of(e.Direction) : Palette.Muted));
 
 		if (e.State is not (RangeDayState.Waiting or RangeDayState.Building))
 			_rows.Add(new PanelRow("Range", $"{e.Low} - {e.High} ({(e.High - e.Low) / InstrumentInfo.TickSize:N0}t)", Palette.Muted));
 
-		if (e.State == RangeDayState.Pending)
+		if (e.State == RangeDayState.Pending && _mode == BotMode.Backtest)
 			_rows.Add(new PanelRow("Retest limit", $"{(_pendingDir > 0 ? "Buy" : "Sell")} {e.PendingPrice:0.00}", Palette.Of(_pendingDir)));
 
-		if (e.State == RangeDayState.InTrade)
+		if (e.State == RangeDayState.InTrade && (_mode == BotMode.Backtest || _mode == BotMode.Live && NetPosition() != 0))
 			AddTradeRows(e);
 
-		if (_liveTrading)
+		if (_mode == BotMode.Off)
+		{
+			_dashboard.Render(context, Container.Region, title, _rows);
+			return;
+		}
+
+		if (_mode == BotMode.Live)
+		{
+			// Only trades actually sent today; P&L is the bot's own estimate from its entry and exit prices.
+			var real = _trades.Where(t => t.Real && t.Day == e.Day).ToList();
+			var pnl = real.Where(t => t.ExitBar >= 0).Sum(t => t.Pnl);
 			_rows.Add(new PanelRow("Position (bot)", NetPosition().ToString("N0"), Palette.Of(NetPosition())));
+			_rows.Add(new PanelRow("Last event", _lastEvent, Palette.Muted));
+			_rows.Add(new PanelRow("Live trades today", real.Count.ToString(), Palette.Muted));
+			_rows.Add(new PanelRow("Live P&L today (est.)", Money(pnl), Palette.Of(pnl)));
+			_dashboard.Render(context, Container.Region, title, _rows);
+			return;
+		}
 
 		_rows.Add(new PanelRow("Last event", _lastEvent, Palette.Muted));
-		_rows.Add(new PanelRow("Day P&L (sim)", Money(e.DayPnl), Palette.Of(e.DayPnl)));
-		_rows.Add(new PanelRow("Trades", e.Trades.ToString(), Palette.Muted));
+		_rows.Add(new PanelRow("Day P&L (backtest)", Money(e.DayPnl), Palette.Of(e.DayPnl)));
+		_rows.Add(new PanelRow("Backtest trades", e.Trades.ToString(), Palette.Muted));
 		_rows.Add(new PanelRow("Win rate", e.Trades == 0 ? "-" : $"{100m * e.Wins / e.Trades:N0}%", Palette.Muted));
 		_rows.Add(new PanelRow("Profit factor", e.GrossLoss == 0 ? "-" : (e.GrossWin / e.GrossLoss).ToString("N2"), e.GrossWin >= e.GrossLoss ? Palette.Up : Palette.Down));
 		_rows.Add(new PanelRow("Net", Money(e.Net), Palette.Of(e.Net)));
 		_rows.Add(new PanelRow("Avg trade", e.Trades == 0 ? "-" : Money(e.Net / e.Trades), Palette.Of(e.Net)));
 		_rows.Add(new PanelRow("Max drawdown", $"{e.MaxDrawdown:$#,0}", e.MaxDrawdown > 0 ? Palette.Down : Palette.Muted));
 
-		_dashboard.Render(context, Container.Region, Title, _rows);
+		_dashboard.Render(context, Container.Region, title, _rows);
 	}
 
 	private void AddTradeRows(RangeBreakoutEngine e)
