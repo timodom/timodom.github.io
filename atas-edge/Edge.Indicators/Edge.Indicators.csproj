@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Mirrors ATAS's public Indicators.csproj so the DLL loads into the installed platform.
+       If your ATAS build runs on a different .NET version, change TargetFramework to match it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Edge.Atas</RootNamespace>
+    <AssemblyName>Edge.Atas.Indicators</AssemblyName>
+    <ATAS_BASE Condition=" '$(ATAS_BASE)' == '' ">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="ATAS.Indicators"><HintPath>$(ATAS_BASE)\ATAS.Indicators.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OFT.Attributes"><HintPath>$(ATAS_BASE)\OFT.Attributes.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OFT.Rendering"><HintPath>$(ATAS_BASE)\OFT.Rendering.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Utils.Common"><HintPath>$(ATAS_BASE)\Utils.Common.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Copies the build into ATAS's user indicators folder; restart ATAS (or reload indicators) to pick it up. -->
+  <Target Name="DeployToAtas" AfterTargets="Build" Condition=" '$(OS)' == 'Windows_NT' ">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(USERPROFILE)\Documents\ATAS\Indicators" />
+  </Target>
+
+</Project>
