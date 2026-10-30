@@ -500,6 +500,10 @@ so the original order object stops being the live one.
 
 ## Open items
 
+- **To do (owner, 2026-10-30):** draw the opening range lines (range box, IBH/IBM/IBL) in Live mode
+  too, including on skipped days, so the range is visible while trading. Example: NQ 10-30, range
+  902 ticks, skipped (over the 600t limit), no lines shown. Bot code: Edge Range Breakout Bot
+  session.
 - Replay audit of `f81d05b` (above).
 - Lower Max range to ~40 ticks so one loss stays near the $500 daily cap.
 - Backtest 3+ months with Protect on; a few hundred trades before judging the edge.
